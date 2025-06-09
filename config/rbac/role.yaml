@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - infrastructure.edgecdnx.com
+  resources:
+  - locations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.edgecdnx.com
+  resources:
+  - locations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infrastructure.edgecdnx.com
+  resources:
+  - locations/status
+  verbs:
+  - get
+  - patch
+  - update
