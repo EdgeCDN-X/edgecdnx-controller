@@ -44,12 +44,16 @@ type NodeSpec struct {
 
 // LocationSpec defines the desired state of Location.
 type LocationSpec struct {
-	FallbackLocations []string   `json:"fallbackLocations,omitempty"`
-	Nodes             []NodeSpec `json:"nodes,omitempty"`
+	FallbackLocations []string      `json:"fallbackLocations,omitempty"`
+	Nodes             []NodeSpec    `json:"nodes,omitempty"`
+	GeoLookup         GeoLookupSpec `json:"geoLookup"`
 }
 
 // LocationStatus defines the observed state of Location.
-type LocationStatus struct{}
+type LocationStatus struct {
+	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
+	Status string `json:"status,omitempty"`
+}
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

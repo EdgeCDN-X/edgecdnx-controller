@@ -43,6 +43,27 @@ spec:
                 items:
                   type: string
                 type: array
+              geoLookup:
+                properties:
+                  attributes:
+                    additionalProperties:
+                      properties:
+                        values:
+                          items:
+                            properties:
+                              value:
+                                type: string
+                              weight:
+                                type: integer
+                            type: object
+                          type: array
+                        weight:
+                          type: integer
+                      type: object
+                    type: object
+                  weight:
+                    type: integer
+                type: object
               nodes:
                 items:
                   properties:
@@ -58,9 +79,18 @@ spec:
                       type: string
                   type: object
                 type: array
+            required:
+            - geoLookup
             type: object
           status:
             description: LocationStatus defines the observed state of Location.
+            properties:
+              status:
+                enum:
+                - Healthy
+                - Progressing
+                - Degraded
+                type: string
             type: object
         type: object
     served: true
