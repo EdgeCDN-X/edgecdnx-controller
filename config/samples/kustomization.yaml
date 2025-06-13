@@ -1,4 +1,5 @@
 ## Append samples of your project ##
 resources:
 - infrastructure_v1alpha1_location.yaml
+- infrastructure_v1alpha1_service.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

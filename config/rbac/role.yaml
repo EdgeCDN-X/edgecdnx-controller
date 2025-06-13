@@ -5,9 +5,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - argoproj.io
+  - infrastructure.edgecdnx.com
   resources:
-  - applicationsets
+  - services
   verbs:
   - create
   - delete
@@ -19,25 +19,13 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
-  - locations
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - infrastructure.edgecdnx.com
-  resources:
-  - locations/finalizers
+  - services/finalizers
   verbs:
   - update
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
-  - locations/status
+  - services/status
   verbs:
   - get
   - patch

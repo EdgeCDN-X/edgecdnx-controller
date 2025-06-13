@@ -29,81 +29,87 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	throwable "github.com/EdgeCDN-X/edgecdnx-controller.git/internal/throwable"
-
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller.git/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 )
 
-// LocationReconciler reconciles a Location object
-type LocationReconciler struct {
+// ServiceReconciler reconciles a Service object
+type ServiceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	ThrowerOptions
 }
 
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations/finalizers,verbs=update
-// +kubebuilder:rbac:groups=argoproj.io,resources=applicationsets,verbs=get;list;watch;create;update;patch;delete
-func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/finalizers,verbs=update
+
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the Service object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
+func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	location := &infrastructurev1alpha1.Location{}
+	service := &infrastructurev1alpha1.Service{}
 
 	// Object not found
-	if err := r.Get(ctx, req.NamespacedName, location); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, service); err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "unable to fetch Location")
+			log.Error(err, "unable to fetch Service")
 			return ctrl.Result{}, err
 		}
-		log.Info("Location resource not found. Ignoring since object must be deleted")
+		log.Info("Service resource not found. Ignoring since object must be deleted")
 		return ctrl.Result{}, nil
 	}
 
-	if location.Status != (infrastructurev1alpha1.LocationStatus{}) {
-		// If status is healthy, check if location application set is rolled out
-		if location.Status.Status == HealthStatusHealthy {
+	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
+		if service.Status.Status == HealthStatusHealthy {
+
 			appset := &argoprojv1alpha1.ApplicationSet{}
 
-			// Do not sync status down the line. Not necessary
-			resource := &infrastructurev1alpha1.Location{
-				TypeMeta: location.TypeMeta,
+			resource := &infrastructurev1alpha1.Service{
+				TypeMeta: service.TypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      location.Name,
+					Name:      service.Name,
 					Namespace: r.InfrastructureTargetNamespace,
 				},
-				Spec: location.Spec,
+				Spec: service.Spec,
 			}
 
-			locationHelmValues := throwable.ThrowerHelmValues{
+			serviceHelmValues := throwable.ThrowerHelmValues{
 				Resources: []any{resource},
 			}
 
-			desiredAppSpec, err := locationHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
+			desiredAppSpec, err := serviceHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
 				r.ThrowerChartName,
 				r.ThrowerChartVersion,
 				r.InfrastructureApplicationSetNamespace,
 				r.InfrastructureApplicationSetProject,
 				r.InfrastructureTargetNamespace,
-				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`,
-					location.Name))
+				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name))
 
-			md5Hash, err := locationHelmValues.GetMd5Hash()
+			md5Hash, err := serviceHelmValues.GetMd5Hash()
 			if err != nil {
 				log.Error(err, "Failed to get MD5 hash for Helm values")
 				return ctrl.Result{}, err
 			}
 
-			err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: location.Name}, appset)
+			err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: service.Name}, appset)
 
 			if err != nil {
 				if apierrors.IsNotFound(err) {
-					log.Info("Creating ApplicationSet for Location", "name", location.Name)
+					log.Info("Creating ApplicationSet for Service", "name", service.Name)
 
 					appset = &argoprojv1alpha1.ApplicationSet{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      location.Name,
+							Name:      service.Name,
 							Namespace: r.InfrastructureApplicationSetNamespace,
 							Annotations: map[string]string{
 								ValuesHashAnnotation: md5Hash,
@@ -112,22 +118,22 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 						Spec: desiredAppSpec,
 					}
 
-					controllerutil.SetControllerReference(location, appset, r.Scheme)
+					controllerutil.SetControllerReference(service, appset, r.Scheme)
 					return ctrl.Result{}, r.Create(ctx, appset)
 				} else {
-					log.Error(err, "Failed to get ApplicationSet for Location")
+					log.Error(err, "unable to fetch ApplicationSet for service")
 					return ctrl.Result{}, err
 				}
 			}
 
 			if !appset.DeletionTimestamp.IsZero() {
-				log.Info("ApplicationSet for Location is being deleted. Skipping reconciliation")
+				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
 			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
 			if !ok || currAppsetHash != md5Hash {
-				log.Info("Updating ApplicationSet for Location")
+				log.Info("Updating ApplicationSet for Service", "name", service.Name)
 
 				appset.Spec = desiredAppSpec
 				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = md5Hash
@@ -138,20 +144,19 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{}, nil
 		}
 	} else {
-		// Update status to healthy
-		location.Status = infrastructurev1alpha1.LocationStatus{
+		service.Status = infrastructurev1alpha1.ServiceStatus{
 			Status: HealthStatusHealthy,
 		}
-		return ctrl.Result{}, r.Status().Update(ctx, location)
+		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *LocationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrastructurev1alpha1.Location{}).
+		For(&infrastructurev1alpha1.Service{}).
 		Owns(&argoprojv1alpha1.ApplicationSet{}).
 		Complete(r)
 }

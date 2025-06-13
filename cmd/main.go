@@ -37,9 +37,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller.git/internal/controller"
-	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -228,16 +229,33 @@ func main() {
 	}
 
 	if err = (&controller.LocationReconciler{
-		Client:                                mgr.GetClient(),
-		Scheme:                                mgr.GetScheme(),
-		ThrowerChartName:                      throwerChartName,
-		ThrowerChartVersion:                   throwerChartVersion,
-		ThrowerChartRepository:                throwerChartRepository,
-		InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-		InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-		InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		ThrowerOptions: controller.ThrowerOptions{
+			ThrowerChartName:                      throwerChartName,
+			ThrowerChartVersion:                   throwerChartVersion,
+			ThrowerChartRepository:                throwerChartRepository,
+			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Location")
+		os.Exit(1)
+	}
+	if err = (&controller.ServiceReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		ThrowerOptions: controller.ThrowerOptions{
+			ThrowerChartName:                      throwerChartName,
+			ThrowerChartVersion:                   throwerChartVersion,
+			ThrowerChartRepository:                throwerChartRepository,
+			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Service")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
