@@ -18,8 +18,6 @@ package controller
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/json"
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	throwable "github.com/EdgeCDN-X/edgecdnx-controller.git/internal/throwable"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
@@ -47,10 +47,6 @@ type LocationReconciler struct {
 	InfrastructureApplicationSetProject   string
 }
 
-type ThrowerHelmValues struct {
-	Resources []any `json:"resources,omitempty"`
-}
-
 const HealthStatusHealthy = "Healthy"
 const ValuesHashAnnotation = "edgecdnx.edgedcnx.com/values-hash"
 
@@ -58,16 +54,6 @@ const ValuesHashAnnotation = "edgecdnx.edgedcnx.com/values-hash"
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations/finalizers,verbs=update
 // +kubebuilder:rbac:groups=argoproj.io,resources=applicationsets,verbs=get;list;watch;create;update;patch;delete
-
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Location object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -79,7 +65,6 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			log.Error(err, "unable to fetch Location")
 			return ctrl.Result{}, err
 		}
-		// Request object not found, could have been deleted after reconcile request.
 		log.Info("Location resource not found. Ignoring since object must be deleted")
 		return ctrl.Result{}, nil
 	}
@@ -99,65 +84,23 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				Spec: location.Spec,
 			}
 
-			locationHelmValues := ThrowerHelmValues{
+			locationHelmValues := throwable.ThrowerHelmValues{
 				Resources: []any{resource},
 			}
 
-			valuesObject, err := json.Marshal(locationHelmValues)
+			desiredAppSpec, err := locationHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
+				r.ThrowerChartName,
+				r.ThrowerChartVersion,
+				r.InfrastructureApplicationSetNamespace,
+				r.InfrastructureApplicationSetProject,
+				r.InfrastructureTargetNamespace,
+				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`,
+					location.Name))
 
+			md5Hash, err := locationHelmValues.GetMd5Hash()
 			if err != nil {
-				log.Error(err, "Failed to marshal location spec")
+				log.Error(err, "Failed to get MD5 hash for Helm values")
 				return ctrl.Result{}, err
-			}
-			valuesHash := md5.Sum(valuesObject)
-			desiredAppSpec := argoprojv1alpha1.ApplicationSetSpec{
-				Generators: []argoprojv1alpha1.ApplicationSetGenerator{
-					{
-						Clusters: &argoprojv1alpha1.ClusterGenerator{
-							Selector: metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{
-									{
-										Key:      "edgecdnx.com/routing",
-										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{"true", "yes"},
-									},
-								},
-							},
-
-							Values: map[string]string{
-								"chartRepository": r.ThrowerChartRepository,
-								"chart":           r.ThrowerChartName,
-								"chartVersion":    r.ThrowerChartVersion,
-							},
-						},
-					},
-				},
-				Template: argoprojv1alpha1.ApplicationSetTemplate{
-					ApplicationSetTemplateMeta: argoprojv1alpha1.ApplicationSetTemplateMeta{
-						Name:      fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`, location.Name),
-						Namespace: r.InfrastructureApplicationSetNamespace,
-					},
-					Spec: argoprojv1alpha1.ApplicationSpec{
-						Project: r.InfrastructureApplicationSetProject,
-						Destination: argoprojv1alpha1.ApplicationDestination{
-							Server:    "{{ server }}",
-							Namespace: r.InfrastructureTargetNamespace,
-						},
-						Sources: []argoprojv1alpha1.ApplicationSource{
-							{
-								Chart:          "{{ values.chart }}",
-								RepoURL:        "{{ values.chartRepository }}",
-								TargetRevision: "{{ values.chartVersion }}",
-								Helm: &argoprojv1alpha1.ApplicationSourceHelm{
-									ReleaseName: "{{ name }}",
-									ValuesObject: &runtime.RawExtension{
-										Raw: valuesObject,
-									},
-								},
-							},
-						},
-					},
-				},
 			}
 
 			err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: location.Name}, appset)
@@ -171,7 +114,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 							Name:      location.Name,
 							Namespace: r.InfrastructureApplicationSetNamespace,
 							Annotations: map[string]string{
-								ValuesHashAnnotation: fmt.Sprintf("%x", valuesHash),
+								ValuesHashAnnotation: md5Hash,
 							},
 						},
 						Spec: desiredAppSpec,
@@ -191,11 +134,11 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			}
 
 			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
-			if !ok || currAppsetHash != fmt.Sprintf("%x", valuesHash) {
+			if !ok || currAppsetHash != md5Hash {
 				log.Info("Updating ApplicationSet for Location")
 
 				appset.Spec = desiredAppSpec
-				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", valuesHash)
+				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = md5Hash
 
 				return ctrl.Result{}, r.Update(ctx, appset)
 			}
