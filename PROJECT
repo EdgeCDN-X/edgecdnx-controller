@@ -26,4 +26,13 @@ resources:
   kind: Service
   path: github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: edgecdnx.com
+  group: infrastructure
+  kind: PrefixList
+  path: github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1
+  version: v1alpha1
 version: "3"

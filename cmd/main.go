@@ -258,6 +258,21 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Service")
 		os.Exit(1)
 	}
+	if err = (&controller.PrefixListReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		ThrowerOptions: controller.ThrowerOptions{
+			ThrowerChartName:                      throwerChartName,
+			ThrowerChartVersion:                   throwerChartVersion,
+			ThrowerChartRepository:                throwerChartRepository,
+			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {
