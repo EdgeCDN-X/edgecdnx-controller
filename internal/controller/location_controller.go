@@ -38,12 +38,17 @@ import (
 // LocationReconciler reconciles a Location object
 type LocationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme                                *runtime.Scheme
+	ThrowerChartName                      string
+	ThrowerChartVersion                   string
+	ThrowerChartRepository                string
+	InfrastructureApplicationSetNamespace string
+	InfrastructureTargetNamespace         string
+	InfrastructureApplicationSetProject   string
 }
 
-type LocationHelmValues struct {
-	Name     string                              `json:"name,omitempty"`
-	Location infrastructurev1alpha1.LocationSpec `json:"location"`
+type ThrowerHelmValues struct {
+	Resources []any `json:"resources,omitempty"`
 }
 
 const HealthStatusHealthy = "Healthy"
@@ -84,9 +89,18 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if location.Status.Status == "Healthy" {
 			appset := &argoprojv1alpha1.ApplicationSet{}
 
-			locationHelmValues := LocationHelmValues{
-				Name:     location.Name,
-				Location: location.Spec,
+			// Do not sync status down the line. Not necessary
+			resource := &infrastructurev1alpha1.Location{
+				TypeMeta: location.TypeMeta,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      location.Name,
+					Namespace: r.InfrastructureTargetNamespace,
+				},
+				Spec: location.Spec,
+			}
+
+			locationHelmValues := ThrowerHelmValues{
+				Resources: []any{resource},
 			}
 
 			valuesObject, err := json.Marshal(locationHelmValues)
@@ -109,25 +123,25 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 									},
 								},
 							},
+
 							Values: map[string]string{
-								// TODO make these configurable
-								"chartRepository": "https://edgecdn-x.github.io/helm-charts",
-								"chart":           "infrastructure-location",
-								"chartVersion":    "0.1.1",
+								"chartRepository": r.ThrowerChartRepository,
+								"chart":           r.ThrowerChartName,
+								"chartVersion":    r.ThrowerChartVersion,
 							},
 						},
 					},
 				},
 				Template: argoprojv1alpha1.ApplicationSetTemplate{
 					ApplicationSetTemplateMeta: argoprojv1alpha1.ApplicationSetTemplateMeta{
-						Name:      fmt.Sprintf(`location-%s-{{ metadata.labels.edgecdnx.com/location }}`, location.Name),
-						Namespace: "argocd",
+						Name:      fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`, location.Name),
+						Namespace: r.InfrastructureApplicationSetNamespace,
 					},
 					Spec: argoprojv1alpha1.ApplicationSpec{
-						Project: "default",
+						Project: r.InfrastructureApplicationSetProject,
 						Destination: argoprojv1alpha1.ApplicationDestination{
 							Server:    "{{ server }}",
-							Namespace: "edgecdnx-routing",
+							Namespace: r.InfrastructureTargetNamespace,
 						},
 						Sources: []argoprojv1alpha1.ApplicationSource{
 							{
@@ -146,7 +160,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				},
 			}
 
-			err = r.Get(ctx, types.NamespacedName{Namespace: "argocd", Name: location.Name}, appset)
+			err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: location.Name}, appset)
 
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -155,7 +169,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 					appset = &argoprojv1alpha1.ApplicationSet{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      location.Name,
-							Namespace: "argocd",
+							Namespace: r.InfrastructureApplicationSetNamespace,
 							Annotations: map[string]string{
 								ValuesHashAnnotation: fmt.Sprintf("%x", valuesHash),
 							},
@@ -176,16 +190,15 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				return ctrl.Result{}, nil
 			}
 
-			//TODO
-			// currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
-			// if !ok || currAppsetHash != fmt.Sprintf("%x", valuesHash) {
-			// 	log.Info("Updating ApplicationSet for Location")
+			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			if !ok || currAppsetHash != fmt.Sprintf("%x", valuesHash) {
+				log.Info("Updating ApplicationSet for Location")
 
-			// 	appset.Spec = desiredAppSpec
-			// 	appset.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", valuesHash)
+				appset.Spec = desiredAppSpec
+				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", valuesHash)
 
-			// 	return ctrl.Result{}, r.Update(ctx, appset)
-			// }
+				return ctrl.Result{}, r.Update(ctx, appset)
+			}
 
 			return ctrl.Result{}, nil
 		}
