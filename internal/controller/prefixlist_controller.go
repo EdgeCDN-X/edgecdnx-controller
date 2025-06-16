@@ -33,9 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller.git/internal/consolidation"
-	"github.com/EdgeCDN-X/edgecdnx-controller.git/internal/throwable"
+	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/consolidation"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 )
 

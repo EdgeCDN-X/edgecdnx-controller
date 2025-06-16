@@ -6,7 +6,7 @@ import (
 	"net"
 	"sort"
 
-	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
+	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 

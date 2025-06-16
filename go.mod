@@ -1,4 +1,4 @@
-module github.com/EdgeCDN-X/edgecdnx-controller.git
+module github.com/EdgeCDN-X/edgecdnx-controller
 
 go 1.24.4
 

@@ -39,8 +39,8 @@ import (
 
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 
-	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller.git/internal/controller"
+	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

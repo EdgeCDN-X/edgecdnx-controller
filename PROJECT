@@ -6,7 +6,7 @@ domain: edgecdnx.com
 layout:
 - go.kubebuilder.io/v4
 projectName: edgecdnx-controller
-repo: github.com/EdgeCDN-X/edgecdnx-controller.git
+repo: github.com/EdgeCDN-X/edgecdnx-controller
 resources:
 - api:
     crdVersion: v1
@@ -15,7 +15,7 @@ resources:
   domain: edgecdnx.com
   group: infrastructure
   kind: Location
-  path: github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1
+  path: github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -24,7 +24,7 @@ resources:
   domain: edgecdnx.com
   group: infrastructure
   kind: Service
-  path: github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1
+  path: github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -33,6 +33,6 @@ resources:
   domain: edgecdnx.com
   group: infrastructure
   kind: PrefixList
-  path: github.com/EdgeCDN-X/edgecdnx-controller.git/api/v1alpha1
+  path: github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1
   version: v1alpha1
 version: "3"
