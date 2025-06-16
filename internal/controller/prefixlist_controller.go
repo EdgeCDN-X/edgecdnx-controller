@@ -21,6 +21,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ type PrefixListReconciler struct {
 }
 
 const ConsoliadtionStatusConsolidated = "Consolidated"
+const ConsoliadtionStatusConsolidating = "Consolidating"
 const HealthStatusProgressing = "Progressing"
 
 const SourceController = "Controller"
@@ -130,40 +132,41 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 	log := logf.FromContext(ctx)
 
 	if prefixList.Status != (infrastructurev1alpha1.PrefixListStatus{}) {
-
 		if prefixList.Status.Status == HealthStatusHealthy {
-
 			generatedName := fmt.Sprintf("%s-%s", prefixList.Spec.Destination, "generated")
-
 			generatedPrefixList := &infrastructurev1alpha1.PrefixList{}
 
 			err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: generatedName}, generatedPrefixList)
 
-			if err != nil && apierrors.IsNotFound(err) {
-				log.Info("Generated PrefixList not found, creating it")
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Info("Generated PrefixList not found, creating it")
 
-				targetPrefixList := &infrastructurev1alpha1.PrefixList{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      generatedName,
-						Namespace: req.Namespace,
-						Annotations: map[string]string{
-							"edgecdnx.com/config-md5": "",
+					targetPrefixList := &infrastructurev1alpha1.PrefixList{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      generatedName,
+							Namespace: req.Namespace,
+							Annotations: map[string]string{
+								ValuesHashAnnotation: "",
+							},
 						},
-					},
-					Spec: infrastructurev1alpha1.PrefixListSpec{
-						Source: SourceController,
-						Prefix: infrastructurev1alpha1.PrefixSpec{
-							V4: make([]infrastructurev1alpha1.V4PrefixSpec, 0),
-							V6: make([]infrastructurev1alpha1.V6PrefixSpec, 0),
+						Spec: infrastructurev1alpha1.PrefixListSpec{
+							Source: SourceController,
+							Prefix: infrastructurev1alpha1.PrefixSpec{
+								V4: make([]infrastructurev1alpha1.V4PrefixSpec, 0),
+								V6: make([]infrastructurev1alpha1.V6PrefixSpec, 0),
+							},
+							Destination: prefixList.Spec.Destination,
 						},
-						Destination: prefixList.Spec.Destination,
-					},
+					}
+
+					controllerutil.SetOwnerReference(prefixList, targetPrefixList, r.Scheme)
+					return ctrl.Result{}, r.Create(ctx, targetPrefixList)
+				} else {
+					log.Error(err, "Failed to get Generated PrefixList")
+					return ctrl.Result{}, err
 				}
-
-				controllerutil.SetOwnerReference(prefixList, targetPrefixList, r.Scheme)
-				return ctrl.Result{}, r.Create(ctx, targetPrefixList)
 			} else {
-
 				if !generatedPrefixList.DeletionTimestamp.IsZero() {
 					log.Info("Generated PrefixList is being deleted, skipping reconciliation")
 					return ctrl.Result{}, nil
@@ -180,15 +183,68 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 				if !containsOwnerReference {
 					log.Info("Prefixlist exists for destination. Adding OwnerReference to generated PrefixList")
 					controllerutil.SetOwnerReference(prefixList, generatedPrefixList, r.Scheme)
-					return ctrl.Result{}, r.Update(ctx, generatedPrefixList)
 				}
 
-				return ctrl.Result{}, nil
+				v4Prefixes := make([]infrastructurev1alpha1.V4PrefixSpec, 0)
+				v6Prefixes := make([]infrastructurev1alpha1.V6PrefixSpec, 0)
+
+				for _, ownerRes := range generatedPrefixList.OwnerReferences {
+					if ownerRes.Kind == "PrefixList" {
+						ownerPrefixList := &infrastructurev1alpha1.PrefixList{}
+						err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: ownerRes.Name}, ownerPrefixList)
+						if err != nil {
+							log.Error(err, "Failed to get Owner PrefixList")
+							return ctrl.Result{}, err
+						}
+
+						if ownerPrefixList.Status.Status != HealthStatusHealthy {
+							log.Info("Owner PrefixList is in progress. Waiting for it to be healthy")
+							return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+						}
+
+						v4Prefixes = append(v4Prefixes, ownerPrefixList.Spec.Prefix.V4...)
+						v6Prefixes = append(v6Prefixes, ownerPrefixList.Spec.Prefix.V6...)
+					}
+				}
+
+				newPrefixesV4, err := consolidation.ConsolidateV4(ctx, v4Prefixes)
+				if err != nil {
+					log.Error(err, "Failed to consolidate prefixes")
+					return ctrl.Result{}, err
+				}
+
+				newPrefixesV6, err := consolidation.ConsolidateV6(ctx, v6Prefixes)
+				if err != nil {
+					log.Error(err, "Failed to consolidate prefixes")
+					return ctrl.Result{}, err
+				}
+
+				newPrefix := infrastructurev1alpha1.PrefixSpec{
+					V4: newPrefixesV4,
+					V6: newPrefixesV6,
+				}
+
+				prefixByteA, err := json.Marshal(newPrefix)
+				if err != nil {
+					log.Error(err, "Failed to marshal prefix object")
+					return ctrl.Result{}, err
+				}
+				newmd5Hash := md5.Sum(prefixByteA)
+
+				curHash, ok := generatedPrefixList.ObjectMeta.Annotations[ValuesHashAnnotation]
+				if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
+					log.Info("Generated PrefixList already exists for destination with the correct config (md5-hash).")
+					return ctrl.Result{}, nil
+				}
+
+				generatedPrefixList.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
+				generatedPrefixList.Spec.Prefix = newPrefix
+
+				return ctrl.Result{}, r.Update(ctx, generatedPrefixList)
 			}
 		}
-
 	} else {
-		log.Info("PrefixList is not yet initialized, setting status to healthy")
+		log.Info("PrefixList is not yet initialized, likely just created. Setting status to healthy")
 		prefixList.Status = infrastructurev1alpha1.PrefixListStatus{
 			Status: HealthStatusHealthy,
 		}
@@ -201,42 +257,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastructurev1alpha1.PrefixList, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	v4Prefixes := make([]infrastructurev1alpha1.V4PrefixSpec, 0)
-	v6Prefixes := make([]infrastructurev1alpha1.V6PrefixSpec, 0)
-
-	for _, ownerRes := range prefixList.OwnerReferences {
-		if ownerRes.Kind == "PrefixList" {
-			log.Info(fmt.Sprintf("%v", ownerRes))
-			ownerPrefixList := &infrastructurev1alpha1.PrefixList{}
-			err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: ownerRes.Name}, ownerPrefixList)
-			if err != nil {
-				log.Error(err, "Failed to get Owner PrefixList")
-				return ctrl.Result{}, err
-			}
-
-			if ownerPrefixList.Status.Status != HealthStatusHealthy {
-				log.Info("Owner PrefixList is in progress. Waiting for it to be healthy")
-				return ctrl.Result{}, nil
-			}
-
-			v4Prefixes = append(v4Prefixes, ownerPrefixList.Spec.Prefix.V4...)
-			v6Prefixes = append(v6Prefixes, ownerPrefixList.Spec.Prefix.V6...)
-		}
-	}
-
-	newPrefixesV4, err := consolidation.ConsolidateV4(ctx, v4Prefixes)
-	if err != nil {
-		log.Error(err, "Failed to consolidate prefixes")
-		return ctrl.Result{}, err
-	}
-	newPrefixesV6 := v6Prefixes
-
-	newPrefix := infrastructurev1alpha1.PrefixSpec{
-		V4: newPrefixesV4,
-		V6: newPrefixesV6,
-	}
-
-	prefixByteA, err := json.Marshal(newPrefix)
+	prefixByteA, err := json.Marshal(prefixList.Spec.Prefix)
 	if err != nil {
 		log.Error(err, "Failed to marshal prefix object")
 		return ctrl.Result{}, err
@@ -249,19 +270,18 @@ func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastruc
 
 		log.Info("PrefixList already exists for destination with the correct config (md5-hash).")
 
-		prefixList.Status = infrastructurev1alpha1.PrefixListStatus{
-			Status:              HealthStatusHealthy,
-			ConsoliadtionStatus: ConsoliadtionStatusConsolidated,
+		if prefixList.Status.Status != HealthStatusHealthy {
+			log.Info("Setting Prefixlist status to healthy")
+			prefixList.Status = infrastructurev1alpha1.PrefixListStatus{
+				Status:              HealthStatusHealthy,
+				ConsoliadtionStatus: ConsoliadtionStatusConsolidated,
+			}
+			return ctrl.Result{}, r.Status().Update(ctx, prefixList)
 		}
-		r.Status().Update(ctx, prefixList)
 
 		return r.reconcileArgocdApplicationSet(prefixList, ctx, req)
 	}
-
-	prefixList.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
-	prefixList.Spec.Prefix = newPrefix
-
-	return ctrl.Result{}, r.Update(ctx, prefixList)
+	return ctrl.Result{}, nil
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=prefixlists,verbs=get;list;watch;create;update;patch;delete
@@ -273,6 +293,8 @@ func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastruc
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *PrefixListReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
+
+	log.Info("Reconciling PrefixList", "name", req.Name, "namespace", req.Namespace)
 
 	prefixList := &infrastructurev1alpha1.PrefixList{}
 	err := r.Get(ctx, req.NamespacedName, prefixList)
