@@ -51,7 +51,29 @@ var _ = Describe("Location Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: infrastructurev1alpha1.LocationSpec{
+						FallbackLocations: []string{"fallback1", "fallback2"},
+						Nodes: []infrastructurev1alpha1.NodeSpec{
+							{
+								Name:   "node1",
+								Ipv4:   "10.0.0.1",
+								Ipv6:   "2001:db8::1",
+								Caches: []string{"ssd"},
+							},
+						},
+						GeoLookup: infrastructurev1alpha1.GeoLookupSpec{
+							Weight: 10,
+							Attributes: map[string]infrastructurev1alpha1.GeoLookupAttributeSpec{
+								"country": {
+									Weight: 5,
+									Values: []infrastructurev1alpha1.GeoLookupAttributeValuesSpec{
+										{Value: "US", Weight: 3},
+										{Value: "CA", Weight: 2},
+									},
+								},
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

@@ -51,8 +51,18 @@ var _ = Describe("PrefixList Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
-				}
+					Spec: infrastructurev1alpha1.PrefixListSpec{
+						Source: "Static",
+						Prefix: infrastructurev1alpha1.PrefixSpec{
+							V4: []infrastructurev1alpha1.V4PrefixSpec{
+								{
+									Address: "192.160.0.0",
+									Size:    24,
+								},
+							},
+							V6: []infrastructurev1alpha1.V6PrefixSpec{},
+						},
+					}}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})

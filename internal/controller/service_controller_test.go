@@ -51,7 +51,24 @@ var _ = Describe("Service Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: infrastructurev1alpha1.ServiceSpec{
+						Name:       "TestService",
+						Domain:     "example.com",
+						OriginType: "static",
+						StaticOrigins: []infrastructurev1alpha1.StaticOriginSpec{
+							{
+								Upstream:   "http://upstream.example.com",
+								Port:       80,
+								HostHeader: "example.com",
+								Scheme:     "Http",
+							},
+						},
+						Customer: infrastructurev1alpha1.CustomerSpec{
+							Name: "TestCustomer",
+							Id:   123,
+						},
+						Cache: "ssd",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

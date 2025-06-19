@@ -2,7 +2,7 @@ module github.com/EdgeCDN-X/edgecdnx-controller
 
 go 1.24.4
 
-godebug default=go1.23
+godebug default=go1.24
 
 require (
 	github.com/argoproj/argo-cd/v3 v3.0.6
