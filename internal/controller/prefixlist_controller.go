@@ -52,7 +52,7 @@ const HealthStatusProgressing = "Progressing"
 
 const SourceController = "Controller"
 
-func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrastructurev1alpha1.PrefixList, ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrastructurev1alpha1.PrefixList, ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	appset := &argoprojv1alpha1.ApplicationSet{}
@@ -79,6 +79,11 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`,
 			prefixList.Name))
 
+	if err != nil {
+		log.Error(err, "Failed to get ApplicationSet spec for PrefixList")
+		return ctrl.Result{}, err
+	}
+
 	md5Hash, err := prefixesHelmValues.GetMd5Hash()
 	if err != nil {
 		log.Error(err, "Failed to get md5 hash for Helm values")
@@ -101,7 +106,11 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 				Spec: desiredAppSpec,
 			}
 
-			controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
+			err = controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
+			if err != nil {
+				log.Error(err, "Failed to set controller reference for ApplicationSet")
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{}, r.Create(ctx, appset)
 		} else {
 			log.Error(err, "Failed to get ApplicationSet for PrefixList")
@@ -160,7 +169,11 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 						},
 					}
 
-					controllerutil.SetOwnerReference(prefixList, targetPrefixList, r.Scheme)
+					err = controllerutil.SetOwnerReference(prefixList, targetPrefixList, r.Scheme)
+					if err != nil {
+						log.Error(err, "Failed to set owner reference for PrefixList")
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, r.Create(ctx, targetPrefixList)
 				} else {
 					log.Error(err, "Failed to get Generated PrefixList")
@@ -182,7 +195,11 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 
 				if !containsOwnerReference {
 					log.Info("Prefixlist exists for destination. Adding OwnerReference to generated PrefixList")
-					controllerutil.SetOwnerReference(prefixList, generatedPrefixList, r.Scheme)
+					err = controllerutil.SetOwnerReference(prefixList, generatedPrefixList, r.Scheme)
+					if err != nil {
+						log.Error(err, "Failed to set owner reference for PrefixList")
+						return ctrl.Result{}, err
+					}
 				}
 
 				v4Prefixes := make([]infrastructurev1alpha1.V4PrefixSpec, 0)

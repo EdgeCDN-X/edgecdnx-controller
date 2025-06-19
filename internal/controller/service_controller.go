@@ -96,6 +96,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				r.InfrastructureTargetNamespace,
 				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name))
 
+			if err != nil {
+				log.Error(err, "Failed to get ApplicationSet spec for Service")
+				return ctrl.Result{}, err
+			}
+
 			md5Hash, err := serviceHelmValues.GetMd5Hash()
 			if err != nil {
 				log.Error(err, "Failed to get MD5 hash for Helm values")
@@ -119,7 +124,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 						Spec: desiredAppSpec,
 					}
 
-					controllerutil.SetControllerReference(service, appset, r.Scheme)
+					err = controllerutil.SetControllerReference(service, appset, r.Scheme)
+					if err != nil {
+						log.Error(err, "Failed to set controller reference for ApplicationSet")
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, r.Create(ctx, appset)
 				} else {
 					log.Error(err, "unable to fetch ApplicationSet for service")

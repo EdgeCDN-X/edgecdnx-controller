@@ -99,13 +99,43 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	flag.StringVar(&throwerChartRepository, "thrower-chart-repository", "https://edgecdn-x.github.io/helm-charts", "Repository URL for the helm chart")
-	flag.StringVar(&throwerChartName, "thrower-chart-name", "resource-thrower", "Name of the helm chart for the thrower")
-	flag.StringVar(&throwerChartVersion, "thrower-chart-version", "0.1.0", "Version of the helm chart for the thrower")
+	flag.StringVar(
+		&throwerChartRepository,
+		"thrower-chart-repository",
+		"https://edgecdn-x.github.io/helm-charts",
+		"Repository URL for the helm chart",
+	)
+	flag.StringVar(
+		&throwerChartName,
+		"thrower-chart-name",
+		"resource-thrower",
+		"Name of the helm chart for the thrower",
+	)
+	flag.StringVar(
+		&throwerChartVersion,
+		"thrower-chart-version",
+		"0.1.0",
+		"Version of the helm chart for the thrower",
+	)
 
-	flag.StringVar(&infrastructureApplicationSetNamespace, "infrastructure-application-set-namespace", "argocd", "The namespace where the infrastructure ApplicationSet is located.")
-	flag.StringVar(&infrastructureTargetNamespace, "infrastructure-target-namespace", "edgecdnx-routing", "The namespace where the infrastructure resources are deployed.")
-	flag.StringVar(&infrastructureApplicationSetProject, "infrastructure-application-set-project", "default", "The project of the infrastructure ApplicationSet.")
+	flag.StringVar(
+		&infrastructureApplicationSetNamespace,
+		"infrastructure-application-set-namespace",
+		"argocd",
+		"The namespace where the infrastructure ApplicationSet is located.",
+	)
+	flag.StringVar(
+		&infrastructureTargetNamespace,
+		"infrastructure-target-namespace",
+		"edgecdnx-routing",
+		"The namespace where the infrastructure resources are deployed.",
+	)
+	flag.StringVar(
+		&infrastructureApplicationSetProject,
+		"infrastructure-application-set-project",
+		"default",
+		"The project of the infrastructure ApplicationSet.",
+	)
 
 	opts := zap.Options{
 		Development: true,

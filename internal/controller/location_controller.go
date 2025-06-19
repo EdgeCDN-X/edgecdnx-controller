@@ -89,6 +89,11 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`,
 					location.Name))
 
+			if err != nil {
+				log.Error(err, "Failed to get ApplicationSet spec for Location")
+				return ctrl.Result{}, err
+			}
+
 			md5Hash, err := locationHelmValues.GetMd5Hash()
 			if err != nil {
 				log.Error(err, "Failed to get MD5 hash for Helm values")
@@ -112,7 +117,11 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 						Spec: desiredAppSpec,
 					}
 
-					controllerutil.SetControllerReference(location, appset, r.Scheme)
+					err = controllerutil.SetControllerReference(location, appset, r.Scheme)
+					if err != nil {
+						log.Error(err, "Failed to set controller reference for ApplicationSet")
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, r.Create(ctx, appset)
 				} else {
 					log.Error(err, "Failed to get ApplicationSet for Location")
