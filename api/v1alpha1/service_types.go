@@ -38,7 +38,8 @@ type CustomerSpec struct {
 
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
-	Name string `json:"name,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Domain string `json:"domain,omitempty"`
 	// +kubebuilder:validation:Enum=s3;static
 	OriginType    string             `json:"originType,omitempty"`
 	StaticOrigins []StaticOriginSpec `json:"staticOrigins,omitempty"`
