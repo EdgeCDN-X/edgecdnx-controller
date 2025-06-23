@@ -41,6 +41,8 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
+	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -51,11 +53,10 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
-
 	utilruntime.Must(argoprojv1alpha1.AddToScheme(scheme))
-
+	utilruntime.Must(networkingv1.AddToScheme(scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -80,6 +81,9 @@ func main() {
 	var infrastructureApplicationSetProject string
 	var infrastructureTargetNamespace string
 
+	// Role
+	var role string
+
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -98,6 +102,8 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+
+	flag.StringVar(&role, "role", "controller", "The role of this instance. Can be 'controller', runs on control plane, 'cache-controller', runs on edge nodes")
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -258,51 +264,70 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.LocationReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ThrowerOptions: controller.ThrowerOptions{
-			ThrowerChartName:                      throwerChartName,
-			ThrowerChartVersion:                   throwerChartVersion,
-			ThrowerChartRepository:                throwerChartRepository,
-			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Location")
-		os.Exit(1)
+	if role == "controller" {
+		if err = (&controller.LocationReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: controller.ThrowerOptions{
+				ThrowerChartName:                      throwerChartName,
+				ThrowerChartVersion:                   throwerChartVersion,
+				ThrowerChartRepository:                throwerChartRepository,
+				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Location")
+			os.Exit(1)
+		}
 	}
-	if err = (&controller.ServiceReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ThrowerOptions: controller.ThrowerOptions{
-			ThrowerChartName:                      throwerChartName,
-			ThrowerChartVersion:                   throwerChartVersion,
-			ThrowerChartRepository:                throwerChartRepository,
-			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Service")
-		os.Exit(1)
+
+	if role == "controller" {
+		if err = (&controller.ServiceReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: controller.ThrowerOptions{
+				ThrowerChartName:                      throwerChartName,
+				ThrowerChartVersion:                   throwerChartVersion,
+				ThrowerChartRepository:                throwerChartRepository,
+				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Service")
+			os.Exit(1)
+		}
 	}
-	if err = (&controller.PrefixListReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		ThrowerOptions: controller.ThrowerOptions{
-			ThrowerChartName:                      throwerChartName,
-			ThrowerChartVersion:                   throwerChartVersion,
-			ThrowerChartRepository:                throwerChartRepository,
-			InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-			InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-			InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
-		os.Exit(1)
+
+	if role == "controller" {
+		if err = (&controller.PrefixListReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: controller.ThrowerOptions{
+				ThrowerChartName:                      throwerChartName,
+				ThrowerChartVersion:                   throwerChartVersion,
+				ThrowerChartRepository:                throwerChartRepository,
+				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
+				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
+			os.Exit(1)
+		}
 	}
+
+	if role == "cache-controller" {
+		if err = (&controller.ServiceCacheReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ServiceCache")
+			os.Exit(1)
+		}
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

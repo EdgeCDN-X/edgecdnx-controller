@@ -82,6 +82,14 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				Resources: []any{resource},
 			}
 
+			labelMatch := []metav1.LabelSelectorRequirement{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+			}
+
 			desiredAppSpec, err := locationHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
 				r.ThrowerChartName,
 				r.ThrowerChartVersion,
@@ -89,7 +97,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				r.InfrastructureApplicationSetProject,
 				r.InfrastructureTargetNamespace,
 				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`,
-					location.Name))
+					location.Name), labelMatch)
 
 			if err != nil {
 				log.Error(err, "Failed to get ApplicationSet spec for Location")

@@ -87,13 +87,27 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				Resources: []any{resource},
 			}
 
+			labelMatch := []metav1.LabelSelectorRequirement{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+				{
+					Key:      "edgecdnx.com/caching",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+			}
+
 			desiredAppSpec, err := serviceHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
 				r.ThrowerChartName,
 				r.ThrowerChartVersion,
 				r.InfrastructureApplicationSetNamespace,
 				r.InfrastructureApplicationSetProject,
 				r.InfrastructureTargetNamespace,
-				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name))
+				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
+				labelMatch)
 
 			if err != nil {
 				log.Error(err, "Failed to get ApplicationSet spec for Service")

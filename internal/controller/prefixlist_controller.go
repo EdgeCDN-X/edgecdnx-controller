@@ -48,7 +48,6 @@ type PrefixListReconciler struct {
 
 const ConsoliadtionStatusConsolidated = "Consolidated"
 const ConsoliadtionStatusConsolidating = "Consolidating"
-const HealthStatusProgressing = "Progressing"
 
 const SourceController = "Controller"
 
@@ -70,6 +69,14 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		Resources: []any{resource},
 	}
 
+	labelMatch := []metav1.LabelSelectorRequirement{
+		{
+			Key:      "edgecdnx.com/routing",
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"true", "yes"},
+		},
+	}
+
 	desiredAppSpec, err := prefixesHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
 		r.ThrowerChartName,
 		r.ThrowerChartVersion,
@@ -77,7 +84,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		r.InfrastructureApplicationSetProject,
 		r.InfrastructureTargetNamespace,
 		fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`,
-			prefixList.Name))
+			prefixList.Name), labelMatch)
 
 	if err != nil {
 		log.Error(err, "Failed to get ApplicationSet spec for PrefixList")

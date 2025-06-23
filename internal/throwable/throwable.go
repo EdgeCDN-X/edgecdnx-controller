@@ -23,24 +23,29 @@ func (t ThrowerHelmValues) GetMd5Hash() (string, error) {
 	return fmt.Sprintf("%x", md5.Sum(valuesObject)), nil
 }
 
-// TODO key for matchexpressions should be configurable
-func (t ThrowerHelmValues) GetAppSetSpec(chartRepository string, chart string, chartVersion string, appsetNamespace string, project string, targetNamespace string, name string) (argoprojv1alpha1.ApplicationSetSpec, error) {
+func (t ThrowerHelmValues) GetAppSetSpec(chartRepository string, chart string, chartVersion string, appsetNamespace string, project string, targetNamespace string, name string, labelMatch []metav1.LabelSelectorRequirement) (argoprojv1alpha1.ApplicationSetSpec, error) {
 	valuesObject, err := json.Marshal(t)
 	if err != nil {
 		return argoprojv1alpha1.ApplicationSetSpec{}, fmt.Errorf("failed to marshal values object: %w", err)
 	}
-	return argoprojv1alpha1.ApplicationSetSpec{
-		Generators: []argoprojv1alpha1.ApplicationSetGenerator{
-			{
+
+	var generators []argoprojv1alpha1.ApplicationSetGenerator
+	if len(labelMatch) == 0 {
+		generators = append(generators, argoprojv1alpha1.ApplicationSetGenerator{
+			Clusters: &argoprojv1alpha1.ClusterGenerator{
+				Values: map[string]string{
+					"chartRepository": chartRepository,
+					"chart":           chart,
+					"chartVersion":    chartVersion,
+				},
+			},
+		})
+	} else {
+		for _, match := range labelMatch {
+			generators = append(generators, argoprojv1alpha1.ApplicationSetGenerator{
 				Clusters: &argoprojv1alpha1.ClusterGenerator{
 					Selector: metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "edgecdnx.com/routing",
-								Operator: metav1.LabelSelectorOpIn,
-								Values:   []string{"true", "yes"},
-							},
-						},
+						MatchExpressions: []metav1.LabelSelectorRequirement{match},
 					},
 
 					Values: map[string]string{
@@ -49,8 +54,12 @@ func (t ThrowerHelmValues) GetAppSetSpec(chartRepository string, chart string, c
 						"chartVersion":    chartVersion,
 					},
 				},
-			},
-		},
+			})
+		}
+	}
+
+	return argoprojv1alpha1.ApplicationSetSpec{
+		Generators: generators,
 		Template: argoprojv1alpha1.ApplicationSetTemplate{
 			ApplicationSetTemplateMeta: argoprojv1alpha1.ApplicationSetTemplateMeta{
 				Name:      name,

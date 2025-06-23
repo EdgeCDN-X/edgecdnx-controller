@@ -1,6 +1,7 @@
 package controller
 
 const HealthStatusHealthy = "Healthy"
+const HealthStatusProgressing = "Progressing"
 const ValuesHashAnnotation = "edgedcnx.com/values-hash"
 
 type ThrowerOptions struct {
