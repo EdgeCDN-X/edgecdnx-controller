@@ -75,7 +75,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			ChartRepository: r.ThrowerChartRepository,
 			Chart:           r.ThrowerChartName,
 			ChartVersion:    r.ThrowerChartVersion,
-			AppsetNamespace: r.InfrastructureApplicationSetNamespace,
+			AppsetNamespace: prefixList.Namespace,
 			Project:         r.InfrastructureApplicationSetProject,
 			TargetNamespace: r.InfrastructureTargetNamespace,
 			Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`, prefixList.Name),
@@ -97,7 +97,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		return ctrl.Result{}, err
 	}
 
-	err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: prefixList.Name}, appset)
+	err = r.Get(ctx, types.NamespacedName{Namespace: prefixList.Namespace, Name: prefixList.Name}, appset)
 
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -112,7 +112,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			appset = &argoprojv1alpha1.ApplicationSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        prefixList.Name,
-					Namespace:   r.InfrastructureApplicationSetNamespace,
+					Namespace:   prefixList.Namespace,
 					Annotations: objAnnotations,
 				},
 				Spec: spec,

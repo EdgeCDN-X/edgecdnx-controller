@@ -90,7 +90,6 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				ChartRepository: r.ThrowerChartRepository,
 				Chart:           r.ThrowerChartName,
 				ChartVersion:    r.ThrowerChartVersion,
-				AppsetNamespace: r.InfrastructureApplicationSetNamespace,
 				Project:         r.InfrastructureApplicationSetProject,
 				TargetNamespace: r.InfrastructureTargetNamespace,
 				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
@@ -119,7 +118,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: service.Name}, appset)
+		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, appset)
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -133,7 +132,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				appset = &argoprojv1alpha1.ApplicationSet{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        service.Name,
-						Namespace:   r.InfrastructureApplicationSetNamespace,
+						Namespace:   service.Namespace,
 						Annotations: objAnnotations,
 					},
 					Spec: spec,

@@ -76,8 +76,6 @@ func main() {
 	var throwerChartVersion string
 
 	// Infrastructure
-
-	var infrastructureApplicationSetNamespace string
 	var infrastructureApplicationSetProject string
 	var infrastructureTargetNamespace string
 
@@ -124,12 +122,6 @@ func main() {
 		"Version of the helm chart for the thrower",
 	)
 
-	flag.StringVar(
-		&infrastructureApplicationSetNamespace,
-		"infrastructure-application-set-namespace",
-		"argocd",
-		"The namespace where the infrastructure ApplicationSet is located.",
-	)
 	flag.StringVar(
 		&infrastructureTargetNamespace,
 		"infrastructure-target-namespace",
@@ -269,12 +261,11 @@ func main() {
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                      throwerChartName,
-				ThrowerChartVersion:                   throwerChartVersion,
-				ThrowerChartRepository:                throwerChartRepository,
-				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+				ThrowerChartName:                    throwerChartName,
+				ThrowerChartVersion:                 throwerChartVersion,
+				ThrowerChartRepository:              throwerChartRepository,
+				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Location")
@@ -287,12 +278,11 @@ func main() {
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                      throwerChartName,
-				ThrowerChartVersion:                   throwerChartVersion,
-				ThrowerChartRepository:                throwerChartRepository,
-				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+				ThrowerChartName:                    throwerChartName,
+				ThrowerChartVersion:                 throwerChartVersion,
+				ThrowerChartRepository:              throwerChartRepository,
+				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
@@ -305,12 +295,11 @@ func main() {
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                      throwerChartName,
-				ThrowerChartVersion:                   throwerChartVersion,
-				ThrowerChartRepository:                throwerChartRepository,
-				InfrastructureApplicationSetNamespace: infrastructureApplicationSetNamespace,
-				InfrastructureTargetNamespace:         infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject:   infrastructureApplicationSetProject,
+				ThrowerChartName:                    throwerChartName,
+				ThrowerChartVersion:                 throwerChartVersion,
+				ThrowerChartRepository:              throwerChartRepository,
+				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
