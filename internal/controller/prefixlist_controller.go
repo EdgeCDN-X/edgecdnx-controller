@@ -21,6 +21,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -69,31 +70,30 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		Resources: []any{resource},
 	}
 
-	labelMatch := []metav1.LabelSelectorRequirement{
-		{
-			Key:      "edgecdnx.com/routing",
-			Operator: metav1.LabelSelectorOpIn,
-			Values:   []string{"true", "yes"},
+	spec, annotations, hash, err := prefixesHelmValues.GetAppSetSpec(
+		throwable.AppsetSpecOptions{
+			ChartRepository: r.ThrowerChartRepository,
+			Chart:           r.ThrowerChartName,
+			ChartVersion:    r.ThrowerChartVersion,
+			AppsetNamespace: r.InfrastructureApplicationSetNamespace,
+			Project:         r.InfrastructureApplicationSetProject,
+			TargetNamespace: r.InfrastructureTargetNamespace,
+			Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`, prefixList.Name),
+			// Roll out for both routing and caching
+			LabelMatch: [][]metav1.LabelSelectorRequirement{
+				{
+					{
+						Key:      "edgecdnx.com/routing",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"true", "yes"},
+					},
+				},
+			},
 		},
-	}
-
-	desiredAppSpec, err := prefixesHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
-		r.ThrowerChartName,
-		r.ThrowerChartVersion,
-		r.InfrastructureApplicationSetNamespace,
-		r.InfrastructureApplicationSetProject,
-		r.InfrastructureTargetNamespace,
-		fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`,
-			prefixList.Name), labelMatch)
+	)
 
 	if err != nil {
 		log.Error(err, "Failed to get ApplicationSet spec for PrefixList")
-		return ctrl.Result{}, err
-	}
-
-	md5Hash, err := prefixesHelmValues.GetMd5Hash()
-	if err != nil {
-		log.Error(err, "Failed to get md5 hash for Helm values")
 		return ctrl.Result{}, err
 	}
 
@@ -102,42 +102,49 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("ApplicationSet not found for PrefixList, creating it")
-			appset = &argoprojv1alpha1.ApplicationSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      prefixList.Name,
-					Namespace: r.InfrastructureApplicationSetNamespace,
-					Annotations: map[string]string{
-						ValuesHashAnnotation: md5Hash,
-					},
-				},
-				Spec: desiredAppSpec,
+			log.Info("Creating ApplicationSet for Service", "name", prefixList.Name)
+
+			objAnnotations := map[string]string{
+				ValuesHashAnnotation: hash,
 			}
 
-			err = controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
-			if err != nil {
-				log.Error(err, "Failed to set controller reference for ApplicationSet")
-				return ctrl.Result{}, err
+			maps.Copy(objAnnotations, annotations)
+			appset = &argoprojv1alpha1.ApplicationSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        prefixList.Name,
+					Namespace:   r.InfrastructureApplicationSetNamespace,
+					Annotations: objAnnotations,
+				},
+				Spec: spec,
 			}
+
+			controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
 			return ctrl.Result{}, r.Create(ctx, appset)
 		} else {
 			log.Error(err, "Failed to get ApplicationSet for PrefixList")
 			return ctrl.Result{}, err
 		}
+	} else {
+		if !appset.DeletionTimestamp.IsZero() {
+			log.Info("ApplicationSet for PrefixList is being deleted. Skipping reconciliation")
+			return ctrl.Result{}, nil
+		}
+
+		currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+		if !ok || currAppsetHash != hash {
+			log.Info("Updating ApplicationSet for Prefixlist", "name", prefixList.Name)
+			appset.Spec = spec
+			maps.Copy(appset.ObjectMeta.Annotations, annotations)
+			appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+			return ctrl.Result{}, r.Update(ctx, appset)
+		}
 	}
 
-	if !appset.DeletionTimestamp.IsZero() {
-		log.Info("ApplicationSet for PrefixList is being deleted. Skipping reconciliation")
-		return ctrl.Result{}, nil
-	}
-
-	currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
-	if !ok || currAppsetHash != md5Hash {
-		log.Info("Updating ApplicationSet for Location")
-
-		appset.Spec = desiredAppSpec
-		appset.ObjectMeta.Annotations[ValuesHashAnnotation] = md5Hash
-
-		return ctrl.Result{}, r.Update(ctx, appset)
+	if prefixList.Status.Status != HealthStatusHealthy {
+		prefixList.Status = infrastructurev1alpha1.PrefixListStatus{
+			Status: HealthStatusHealthy,
+		}
+		return ctrl.Result{}, r.Status().Update(ctx, prefixList)
 	}
 
 	return ctrl.Result{}, nil

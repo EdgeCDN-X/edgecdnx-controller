@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,110 +71,110 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		if service.Status.Status == HealthStatusHealthy {
+		appset := &argoprojv1alpha1.ApplicationSet{}
 
-			appset := &argoprojv1alpha1.ApplicationSet{}
+		resource := &infrastructurev1alpha1.Service{
+			TypeMeta: service.TypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      service.Name,
+				Namespace: r.InfrastructureTargetNamespace,
+			},
+			Spec: service.Spec,
+		}
+		serviceHelmValues := throwable.ThrowerHelmValues{
+			Resources: []any{resource},
+		}
 
-			resource := &infrastructurev1alpha1.Service{
-				TypeMeta: service.TypeMeta,
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      service.Name,
-					Namespace: r.InfrastructureTargetNamespace,
-				},
-				Spec: service.Spec,
-			}
-
-			serviceHelmValues := throwable.ThrowerHelmValues{
-				Resources: []any{resource},
-			}
-
-			labelMatch := []metav1.LabelSelectorRequirement{
-				{
-					Key:      "edgecdnx.com/routing",
-					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{"true", "yes"},
-				},
-				{
-					Key:      "edgecdnx.com/caching",
-					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{"true", "yes"},
-				},
-			}
-
-			desiredAppSpec, err := serviceHelmValues.GetAppSetSpec(r.ThrowerChartRepository,
-				r.ThrowerChartName,
-				r.ThrowerChartVersion,
-				r.InfrastructureApplicationSetNamespace,
-				r.InfrastructureApplicationSetProject,
-				r.InfrastructureTargetNamespace,
-				fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
-				labelMatch)
-
-			if err != nil {
-				log.Error(err, "Failed to get ApplicationSet spec for Service")
-				return ctrl.Result{}, err
-			}
-
-			md5Hash, err := serviceHelmValues.GetMd5Hash()
-			if err != nil {
-				log.Error(err, "Failed to get MD5 hash for Helm values")
-				return ctrl.Result{}, err
-			}
-
-			err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: service.Name}, appset)
-
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					log.Info("Creating ApplicationSet for Service", "name", service.Name)
-
-					appset = &argoprojv1alpha1.ApplicationSet{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      service.Name,
-							Namespace: r.InfrastructureApplicationSetNamespace,
-							Annotations: map[string]string{
-								ValuesHashAnnotation: md5Hash,
-							},
+		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(
+			throwable.AppsetSpecOptions{
+				ChartRepository: r.ThrowerChartRepository,
+				Chart:           r.ThrowerChartName,
+				ChartVersion:    r.ThrowerChartVersion,
+				AppsetNamespace: r.InfrastructureApplicationSetNamespace,
+				Project:         r.InfrastructureApplicationSetProject,
+				TargetNamespace: r.InfrastructureTargetNamespace,
+				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
+				// Roll out for both routing and caching
+				LabelMatch: [][]metav1.LabelSelectorRequirement{
+					{
+						{
+							Key:      "edgecdnx.com/routing",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
 						},
-						Spec: desiredAppSpec,
-					}
+					},
+					{
+						{
+							Key:      "edgecdnx.com/caching",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
+						},
+					},
+				},
+			},
+		)
 
-					err = controllerutil.SetControllerReference(service, appset, r.Scheme)
-					if err != nil {
-						log.Error(err, "Failed to set controller reference for ApplicationSet")
-						return ctrl.Result{}, err
-					}
-					return ctrl.Result{}, r.Create(ctx, appset)
-				} else {
-					log.Error(err, "unable to fetch ApplicationSet for service")
-					return ctrl.Result{}, err
+		if err != nil {
+			log.Error(err, "Failed to get ApplicationSet spec for Service")
+			return ctrl.Result{}, err
+		}
+
+		err = r.Get(ctx, types.NamespacedName{Namespace: r.InfrastructureApplicationSetNamespace, Name: service.Name}, appset)
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Info("Creating ApplicationSet for Service", "name", service.Name)
+
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
 				}
-			}
 
+				maps.Copy(objAnnotations, annotations)
+				appset = &argoprojv1alpha1.ApplicationSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        service.Name,
+						Namespace:   r.InfrastructureApplicationSetNamespace,
+						Annotations: objAnnotations,
+					},
+					Spec: spec,
+				}
+
+				controllerutil.SetControllerReference(service, appset, r.Scheme)
+				return ctrl.Result{}, r.Create(ctx, appset)
+			} else {
+				log.Error(err, "unable to fetch ApplicationSet for service")
+				return ctrl.Result{}, err
+			}
+		} else {
 			if !appset.DeletionTimestamp.IsZero() {
 				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
 			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
-			if !ok || currAppsetHash != md5Hash {
+			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Service", "name", service.Name)
-
-				appset.Spec = desiredAppSpec
-				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = md5Hash
-
+				appset.Spec = spec
+				maps.Copy(appset.ObjectMeta.Annotations, annotations)
+				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, appset)
 			}
-
-			return ctrl.Result{}, nil
 		}
+
+		if service.Status.Status != HealthStatusHealthy {
+			service.Status = infrastructurev1alpha1.ServiceStatus{
+				Status: HealthStatusHealthy,
+			}
+			return ctrl.Result{}, r.Status().Update(ctx, service)
+		}
+
+		return ctrl.Result{}, nil
 	} else {
 		service.Status = infrastructurev1alpha1.ServiceStatus{
-			Status: HealthStatusHealthy,
+			Status: HealthStatusProgressing,
 		}
 		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}
-
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
