@@ -21,8 +21,8 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
-	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,27 +44,32 @@ type ServiceCacheReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1.Service) (networkingv1.IngressSpec, string, error) {
+func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1.Service) (networkingv1.IngressSpec, map[string]string, string, error) {
 	extServiceName := strings.Replace(service.Name, ".", "-", -1)
 
 	pathTypeImplementationSpecific := networkingv1.PathTypeImplementationSpecific
 
-	spec := networkingv1.IngressSpec{
-		IngressClassName: &service.Spec.Cache,
-		Rules: []networkingv1.IngressRule{
-			{
-				Host: service.Spec.Domain,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{
-						Paths: []networkingv1.HTTPIngressPath{
-							{
-								Path:     "/",
-								PathType: &pathTypeImplementationSpecific,
-								Backend: networkingv1.IngressBackend{
-									Service: &networkingv1.IngressServiceBackend{
-										Name: extServiceName,
-										Port: networkingv1.ServiceBackendPort{
-											Number: int32(service.Spec.StaticOrigins[0].Port),
+	marshable := struct {
+		Spec        networkingv1.IngressSpec `json:"spec"`
+		Annotations map[string]string        `json:"annotations"`
+	}{
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: &service.Spec.Cache,
+			Rules: []networkingv1.IngressRule{
+				{
+					Host: service.Spec.Domain,
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     "/",
+									PathType: &pathTypeImplementationSpecific,
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{
+											Name: extServiceName,
+											Port: networkingv1.ServiceBackendPort{
+												Number: int32(service.Spec.StaticOrigins[0].Port),
+											},
 										},
 									},
 								},
@@ -74,26 +79,40 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 				},
 			},
 		},
+		Annotations: map[string]string{
+			"nginx.ingress.kubernetes.io/backend-protocol": strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
+			"nginx.ingress.kubernetes.io/upstream-vhost":   service.Spec.StaticOrigins[0].HostHeader,
+			"nginx.ingress.kubernetes.io/server-snippet": fmt.Sprintf(`
+			proxy_ssl_name %s;
+			proxy_ssl_server_name on;
+			`, service.Spec.StaticOrigins[0].HostHeader),
+		},
 	}
 
-	hashable, err := json.Marshal(spec)
+	hashable, err := json.Marshal(marshable)
 	if err != nil {
-		return networkingv1.IngressSpec{}, "", fmt.Errorf("failed to marshal values object: %w", err)
+		return networkingv1.IngressSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
 	}
-	return spec, fmt.Sprintf("%x", md5.Sum(hashable)), nil
+	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
 }
 
-func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1.Service) (v1.ServiceSpec, string, error) {
-	spec := v1.ServiceSpec{
-		ExternalName: service.Spec.StaticOrigins[0].Upstream,
-		Type:         v1.ServiceTypeExternalName,
+func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1.Service) (v1.ServiceSpec, map[string]string, string, error) {
+	marshable := struct {
+		Spec        v1.ServiceSpec    `json:"spec"`
+		Annotations map[string]string `json:"annotations"`
+	}{
+		Spec: v1.ServiceSpec{
+			ExternalName: service.Spec.StaticOrigins[0].Upstream,
+			Type:         v1.ServiceTypeExternalName,
+		},
+		Annotations: map[string]string{},
 	}
 
-	hashable, err := json.Marshal(spec)
+	hashable, err := json.Marshal(marshable)
 	if err != nil {
-		return v1.ServiceSpec{}, "", fmt.Errorf("failed to marshal values object: %w", err)
+		return v1.ServiceSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
 	}
-	return spec, fmt.Sprintf("%x", md5.Sum(hashable)), nil
+	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -138,39 +157,36 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if apierrors.IsNotFound(err) {
 				log.Info("ExternalName Service not found, creating it", "Service", extServiceName)
 
-				spec, hash, err := r.getServiceCache(service)
+				spec, annotations, hash, err := r.getServiceCache(service)
 
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
+				}
+
+				maps.Copy(objAnnotations, annotations)
+
 				// StaticOrigin use case
 				extService = &v1.Service{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      extServiceName,
-						Namespace: service.Namespace,
-						Annotations: map[string]string{
-							ValuesHashAnnotation: hash,
-						},
+						Name:        extServiceName,
+						Namespace:   service.Namespace,
+						Annotations: objAnnotations,
 					},
 					Spec: spec,
 				}
 
 				controllerutil.SetControllerReference(service, extService, r.Scheme)
-
-				err = r.Create(ctx, extService)
-
-				if err != nil {
-					log.Error(err, "unable to create Ingress for Service", "Service", extServiceName)
-					return ctrl.Result{}, err
-				}
-
+				return ctrl.Result{}, r.Create(ctx, extService)
 			} else {
-				log.Error(err, "unable to fetch Ingress for Service", "Service", extServiceName)
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+				log.Error(err, "unable to fetch Service", "Service", extServiceName)
+				return ctrl.Result{Requeue: true}, err
 			}
 		} else {
-			spec, hash, err := r.getServiceCache(service)
+			spec, annotations, hash, err := r.getServiceCache(service)
 
 			if err != nil {
 				return ctrl.Result{}, err
@@ -179,6 +195,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			curHash, ok := extService.Annotations[ValuesHashAnnotation]
 			if !ok || curHash != hash {
 				extService.Spec = spec
+				maps.Copy(extService.Annotations, annotations)
 				extService.Annotations[ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, extService)
 			}
@@ -192,19 +209,23 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if apierrors.IsNotFound(err) {
 				log.Info("Creating Ingress for Service", "Service", service.Name)
 
-				spec, hash, err := r.getIngressCache(service)
+				spec, annotations, hash, err := r.getIngressCache(service)
 
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
+				}
+
+				maps.Copy(objAnnotations, annotations)
+
 				ingress = &networkingv1.Ingress{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      service.Name,
-						Namespace: service.Namespace,
-						Annotations: map[string]string{
-							ValuesHashAnnotation: hash,
-						},
+						Name:        service.Name,
+						Namespace:   service.Namespace,
+						Annotations: objAnnotations,
 					},
 					Spec: spec,
 				}
@@ -215,28 +236,31 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					return ctrl.Result{}, err
 				}
 			} else {
-
-				spec, hash, err := r.getIngressCache(service)
-
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-
-				curHash, ok := ingress.Annotations[ValuesHashAnnotation]
-
-				if !ok || curHash != hash {
-					ingress.Spec = spec
-					ingress.Annotations[ValuesHashAnnotation] = hash
-					return ctrl.Result{}, r.Update(ctx, ingress)
-				}
-
-				log.Error(err, "unable to fetch Ingress for Service", "Service", service.Name)
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+				log.Error(err, "unable to fetch Ingress", "Service", service.Name)
+				return ctrl.Result{Requeue: true}, err
 			}
 		} else {
+			spec, annotations, hash, err := r.getIngressCache(service)
 
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			curHash, ok := ingress.Annotations[ValuesHashAnnotation]
+
+			if !ok || curHash != hash {
+				ingress.Spec = spec
+				maps.Copy(ingress.Annotations, annotations)
+				ingress.Annotations[ValuesHashAnnotation] = hash
+				return ctrl.Result{}, r.Update(ctx, ingress)
+			}
 		}
 
+		service.Status = infrastructurev1alpha1.ServiceStatus{
+			Status: HealthStatusHealthy,
+		}
+
+		return ctrl.Result{}, r.Status().Update(ctx, service)
 	} else {
 		//TODO set initial status
 		service.Status = infrastructurev1alpha1.ServiceStatus{
@@ -244,8 +268,6 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}
-
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
