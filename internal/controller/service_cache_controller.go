@@ -82,10 +82,16 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 		Annotations: map[string]string{
 			"nginx.ingress.kubernetes.io/backend-protocol": strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
 			"nginx.ingress.kubernetes.io/upstream-vhost":   service.Spec.StaticOrigins[0].HostHeader,
-			"nginx.ingress.kubernetes.io/server-snippet": fmt.Sprintf(`
+			"nginx.ingress.kubernetes.io/configuration-snippet": fmt.Sprintf(`
 			proxy_ssl_name %s;
 			proxy_ssl_server_name on;
-			`, service.Spec.StaticOrigins[0].HostHeader),
+			proxy_cache %s;
+			proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+			proxy_cache_background_update on;
+			proxy_cache_revalidate on;
+			proxy_cache_lock on;
+			add_header X-EX-Status $upstream_cache_status;
+			`, service.Spec.StaticOrigins[0].HostHeader, service.Spec.Cache),
 		},
 	}
 
