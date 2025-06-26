@@ -18,8 +18,11 @@ package controller
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"maps"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +36,8 @@ import (
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 )
 
 // ServiceReconciler reconciles a Service object
@@ -40,11 +45,45 @@ type ServiceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	ThrowerOptions
+	ClusterIssuerName string
+}
+
+func (r *ServiceReconciler) GetCertificateSpec(service *infrastructurev1alpha1.Service) (certmanagerv1.CertificateSpec, map[string]string, string, error) {
+
+	spec := certmanagerv1.CertificateSpec{
+		SecretName:  fmt.Sprintf("%s-tls", service.Name),
+		RenewBefore: &metav1.Duration{Duration: 240 * time.Hour},
+		IssuerRef: cmmeta.ObjectReference{
+			Name:  r.ClusterIssuerName,
+			Kind:  "ClusterIssuer",
+			Group: certmanagerv1.SchemeGroupVersion.Group,
+		},
+		DNSNames: []string{
+			service.Spec.Domain,
+		},
+	}
+
+	marshable := struct {
+		Spec        certmanagerv1.CertificateSpec `json:"spec"`
+		Annotations map[string]string             `json:"annotations"`
+	}{
+		Spec:        spec,
+		Annotations: map[string]string{},
+	}
+
+	hashable, err := json.Marshal(marshable)
+	if err != nil {
+		return certmanagerv1.CertificateSpec{}, nil, "", fmt.Errorf("failed to marshal certificate spec: %w", err)
+	}
+
+	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
+
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -85,6 +124,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Resources: []any{resource},
 		}
 
+		// ################ START - Application Spec section
 		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(
 			throwable.AppsetSpecOptions{
 				ChartRepository: r.ThrowerChartRepository,
@@ -160,6 +200,66 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
+		// ################ END - Application Spec section
+
+		// ################ START - Certificate Issuance section
+
+		certSpec, annotations, hash, err := r.GetCertificateSpec(service)
+		if err != nil {
+			log.Error(err, "Failed to get Certificate spec for Service")
+			return ctrl.Result{}, err
+		}
+
+		cert := &certmanagerv1.Certificate{}
+		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, cert)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Info("Creating Certificate for Service", "name", service.Name)
+
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
+				}
+
+				cert = &certmanagerv1.Certificate{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        service.Name,
+						Namespace:   service.Namespace,
+						Annotations: objAnnotations,
+					},
+					Spec: certSpec,
+				}
+
+				controllerutil.SetControllerReference(service, cert, r.Scheme)
+				return ctrl.Result{}, r.Create(ctx, cert)
+			}
+
+			log.Error(err, "unable to fetch Certificate for Service")
+			return ctrl.Result{}, err
+		} else {
+			if !cert.DeletionTimestamp.IsZero() {
+				log.Info("Certificate for Service is being deleted. Skipping reconciliation")
+				return ctrl.Result{}, nil
+			}
+
+			currCertHash, ok := cert.ObjectMeta.Annotations[ValuesHashAnnotation]
+			if !ok || currCertHash != hash {
+				log.Info("Updating Certificate for Service", "name", service.Name)
+				cert.Spec = certSpec
+				cert.ObjectMeta.Annotations = annotations
+				cert.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+				return ctrl.Result{}, r.Update(ctx, cert)
+			}
+		}
+
+		// Check if certificate is issuing
+		for cc := range cert.Status.Conditions {
+			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionIssuing && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
+				log.Info("Certificate is issuing")
+				// TODO make flow to generate applicationset for proxy stuff
+			}
+		}
+
+		// ################ END - Application Spec section
 		if service.Status.Status != HealthStatusHealthy {
 			service.Status = infrastructurev1alpha1.ServiceStatus{
 				Status: HealthStatusHealthy,
@@ -181,5 +281,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Service{}).
 		Owns(&argoprojv1alpha1.ApplicationSet{}).
+		Owns(&certmanagerv1.Certificate{}).
 		Complete(r)
 }

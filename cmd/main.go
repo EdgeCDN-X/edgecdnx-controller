@@ -41,6 +41,7 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	// +kubebuilder:scaffold:imports
@@ -57,6 +58,7 @@ func init() {
 	utilruntime.Must(argoprojv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -78,6 +80,7 @@ func main() {
 	// Infrastructure
 	var infrastructureApplicationSetProject string
 	var infrastructureTargetNamespace string
+	var clusterIssuerName string
 
 	// Role
 	var role string
@@ -133,6 +136,13 @@ func main() {
 		"infrastructure-application-set-project",
 		"default",
 		"The project of the infrastructure ApplicationSet.",
+	)
+
+	flag.StringVar(
+		&clusterIssuerName,
+		"cluster-issuer-name",
+		"edgecdnx",
+		"The name of the cluster issuer to use for certificate management.",
 	)
 
 	opts := zap.Options{
@@ -284,6 +294,7 @@ func main() {
 				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
 				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
 			},
+			ClusterIssuerName: clusterIssuerName,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
 			os.Exit(1)
