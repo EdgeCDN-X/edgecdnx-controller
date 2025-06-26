@@ -17,12 +17,14 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"strings"
+	"text/template"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,6 +50,32 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 	extServiceName := strings.Replace(service.Name, ".", "-", -1)
 
 	pathTypeImplementationSpecific := networkingv1.PathTypeImplementationSpecific
+
+	configSnippetTemplate := `
+	{{- if and (eq .OriginType "static") (eq (index .StaticOrigins 0).Scheme "Https") }}
+	proxy_ssl_name {{ (index .StaticOrigins 0).HostHeader }};
+	proxy_ssl_server_name on;
+	{{- end }}
+	proxy_cache {{ .Cache }};
+	proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+	proxy_cache_background_update on;
+	proxy_cache_revalidate on;
+	proxy_cache_lock on;
+	proxy_set_header Host {{ (index .StaticOrigins 0).HostHeader }};
+	add_header X-EX-Status $upstream_cache_status;
+	`
+
+	tmpl, err := template.New("nginxconfigsnippet").Parse(configSnippetTemplate)
+
+	if err != nil {
+		return networkingv1.IngressSpec{}, make(map[string]string), "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	var configSnippet bytes.Buffer
+	err = tmpl.Execute(&configSnippet, service.Spec)
+	if err != nil {
+		return networkingv1.IngressSpec{}, make(map[string]string), "", fmt.Errorf("failed to execute template: %w", err)
+	}
 
 	marshable := struct {
 		Spec        networkingv1.IngressSpec `json:"spec"`
@@ -80,18 +108,9 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 			},
 		},
 		Annotations: map[string]string{
-			"nginx.ingress.kubernetes.io/backend-protocol": strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
-			"nginx.ingress.kubernetes.io/upstream-vhost":   service.Spec.StaticOrigins[0].HostHeader,
-			"nginx.ingress.kubernetes.io/configuration-snippet": fmt.Sprintf(`
-			proxy_ssl_name %s;
-			proxy_ssl_server_name on;
-			proxy_cache %s;
-			proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
-			proxy_cache_background_update on;
-			proxy_cache_revalidate on;
-			proxy_cache_lock on;
-			add_header X-EX-Status $upstream_cache_status;
-			`, service.Spec.StaticOrigins[0].HostHeader, service.Spec.Cache),
+			"nginx.ingress.kubernetes.io/backend-protocol":      strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
+			"nginx.ingress.kubernetes.io/upstream-vhost":        service.Spec.StaticOrigins[0].HostHeader,
+			"nginx.ingress.kubernetes.io/configuration-snippet": configSnippet.String(),
 		},
 	}
 
@@ -201,7 +220,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			curHash, ok := extService.Annotations[ValuesHashAnnotation]
 			if !ok || curHash != hash {
 				extService.Spec = spec
-				maps.Copy(extService.Annotations, annotations)
+				extService.Annotations = annotations
 				extService.Annotations[ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, extService)
 			}
@@ -256,7 +275,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 			if !ok || curHash != hash {
 				ingress.Spec = spec
-				maps.Copy(ingress.Annotations, annotations)
+				ingress.Annotations = annotations
 				ingress.Annotations[ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, ingress)
 			}
@@ -268,7 +287,6 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		return ctrl.Result{}, r.Status().Update(ctx, service)
 	} else {
-		//TODO set initial status
 		service.Status = infrastructurev1alpha1.ServiceStatus{
 			Status: HealthStatusProgressing,
 		}
