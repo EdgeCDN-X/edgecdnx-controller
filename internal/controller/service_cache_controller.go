@@ -61,7 +61,6 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 	proxy_cache_background_update on;
 	proxy_cache_revalidate on;
 	proxy_cache_lock on;
-	proxy_set_header Host {{ (index .StaticOrigins 0).HostHeader }};
 	add_header X-EX-Status $upstream_cache_status;
 	`
 
