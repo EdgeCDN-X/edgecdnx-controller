@@ -41,6 +41,7 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
+	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -59,6 +60,7 @@ func init() {
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
 	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
+	utilruntime.Must(acmev1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -314,6 +316,23 @@ func main() {
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
+			os.Exit(1)
+		}
+	}
+
+	if role == "controller" {
+		if err = (&controller.ChallengeReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: controller.ThrowerOptions{
+				ThrowerChartName:                    throwerChartName,
+				ThrowerChartVersion:                 throwerChartVersion,
+				ThrowerChartRepository:              throwerChartRepository,
+				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Challenge")
 			os.Exit(1)
 		}
 	}

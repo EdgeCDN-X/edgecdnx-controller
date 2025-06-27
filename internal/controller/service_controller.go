@@ -24,6 +24,7 @@ import (
 	"maps"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -251,11 +252,24 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
+		// TODO, this should run before the ApplicationSet is created.
 		// Check if certificate is issuing
 		for cc := range cert.Status.Conditions {
+			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionReady && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
+				secret := &corev1.Secret{}
+				err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: cert.Spec.SecretName}, secret)
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+					}
+					log.Error(err, "unable to fetch Certificate Secret for Service")
+					return ctrl.Result{}, err
+				}
+			}
+
 			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionIssuing && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
-				log.Info("Certificate is issuing")
-				// TODO make flow to generate applicationset for proxy stuff
+				log.Info("Certificate is still issuing for Service")
+				return ctrl.Result{}, nil
 			}
 		}
 

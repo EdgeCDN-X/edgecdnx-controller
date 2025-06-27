@@ -5,6 +5,21 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - acme.cert-manager.io/v1
+  resources:
+  - challenges
+  - orders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - acme.cert-manager.io/v1
+  resources:
+  - challenges/status
+  verbs:
+  - get
+- apiGroups:
   - argoproj.io
   resources:
   - applicationsets
@@ -27,6 +42,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - cert-manager.io/v1
+  resources:
+  - certificaterequests
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - infrastructure.edgecdnx.com

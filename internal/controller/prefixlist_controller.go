@@ -324,8 +324,6 @@ func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastruc
 func (r *PrefixListReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	log.Info("Reconciling PrefixList", "name", req.Name, "namespace", req.Namespace)
-
 	prefixList := &infrastructurev1alpha1.PrefixList{}
 	err := r.Get(ctx, req.NamespacedName, prefixList)
 

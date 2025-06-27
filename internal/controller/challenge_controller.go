@@ -1,0 +1,373 @@
+/*
+Copyright 2025.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"context"
+	"crypto/md5"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"maps"
+	"strings"
+
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
+	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+// LocationReconciler reconciles a Location object
+type ChallengeReconciler struct {
+	client.Client
+	Scheme *runtime.Scheme
+	ThrowerOptions
+}
+
+// TODO make this nicer
+func (r *ChallengeReconciler) GetServiceOwner(ctx context.Context, req ctrl.Request, challenge *acmev1.Challenge, service *infrastructurev1alpha1.Service) error {
+	challengeOwners := challenge.GetOwnerReferences()
+	for res := range challengeOwners {
+		if challengeOwners[res].Kind == "Order" && *challengeOwners[res].Controller {
+			order := &acmev1.Order{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      challengeOwners[res].Name,
+				Namespace: req.Namespace,
+			}, order); err != nil {
+				logf.FromContext(ctx).Error(err, "Failed to get Order for Challenge")
+				return err
+			}
+
+			orderOwners := order.GetOwnerReferences()
+			for res := range orderOwners {
+				if orderOwners[res].Kind == "CertificateRequest" && *orderOwners[res].Controller {
+					certReq := &certmanagerv1.CertificateRequest{}
+					if err := r.Get(ctx, types.NamespacedName{
+						Name:      orderOwners[res].Name,
+						Namespace: req.Namespace,
+					}, certReq); err != nil {
+						logf.FromContext(ctx).Error(err, "Failed to get CertificateRequest for CertificateRequest")
+						return err
+					}
+
+					certReqOwners := certReq.GetOwnerReferences()
+					for res := range certReqOwners {
+						if certReqOwners[res].Kind == "Certificate" && *certReqOwners[res].Controller {
+							cert := &certmanagerv1.Certificate{}
+							if err := r.Get(ctx, types.NamespacedName{
+								Name:      certReqOwners[res].Name,
+								Namespace: req.Namespace,
+							}, cert); err != nil {
+								logf.FromContext(ctx).Error(err, "Failed to get Certificate for CertificateRequest")
+								return err
+							}
+
+							certOwners := cert.GetOwnerReferences()
+							for res := range certOwners {
+								if certOwners[res].Kind == "Service" && *certOwners[res].Controller {
+									if err := r.Get(ctx, types.NamespacedName{
+										Name:      certOwners[res].Name,
+										Namespace: req.Namespace,
+									}, service); err != nil {
+										logf.FromContext(ctx).Error(err, "Failed to get Service for Certificate")
+										return err
+									}
+									return nil
+								}
+							}
+
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return errors.New("No Service found in owner Chain")
+}
+
+// +kubebuilder:rbac:groups=acme.cert-manager.io/v1,resources=challenges,verbs=get;list;watch
+// +kubebuilder:rbac:groups=acme.cert-manager.io/v1,resources=orders,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cert-manager.io/v1,resources=certificaterequests,verbs=get;list;watch
+// +kubebuilder:rbac:groups=acme.cert-manager.io/v1,resources=challenges/status,verbs=get
+// +kubebuilder:rbac:groups=argoproj.io,resources=applicationsets,verbs=get;list;watch;create;update;patch;delete
+
+func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	challenge := &acmev1.Challenge{}
+	if err := r.Get(ctx, req.NamespacedName, challenge); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			log.Error(err, "Failed to get Challenge")
+		}
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	serviceOwner := &infrastructurev1alpha1.Service{}
+	err := r.GetServiceOwner(ctx, req, challenge, serviceOwner)
+	if err != nil {
+		log.Error(err, "Failed to get Service owner for Challenge")
+		return ctrl.Result{}, err
+	}
+
+	challengeSpec, err := json.Marshal(challenge.Spec)
+	if err != nil {
+		log.Error(err, "Failed to marshal Challenge spec")
+		return ctrl.Result{}, err
+	}
+	md5Hash := md5.Sum([]byte(challengeSpec))
+
+	if challenge.Status.Presented && challenge.Status.Processing {
+		deployment := &corev1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      challenge.Name,
+				Namespace: r.InfrastructureTargetNamespace,
+				Annotations: map[string]string{
+					"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+					"sidecar.istio.io/inject":                        "false",
+				},
+				Labels: map[string]string{
+					"app":  challenge.Name,
+					"hash": fmt.Sprintf("%x", md5Hash),
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "acmesolver",
+						Image: "quay.io/jetstack/cert-manager-acmesolver:v1.17.2",
+						Args: []string{
+							"--listen-port=8089",
+							fmt.Sprintf("--domain=%s", challenge.Spec.DNSName),
+							fmt.Sprintf("--token=%s", challenge.Spec.Token),
+							fmt.Sprintf("--key=%s", challenge.Spec.Key),
+						},
+						Ports: []corev1.ContainerPort{
+							{
+								Name:          "http",
+								ContainerPort: 8089,
+								Protocol:      corev1.ProtocolTCP,
+							},
+						},
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("64Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("10m"),
+								corev1.ResourceMemory: resource.MustParse("64Mi"),
+							},
+						},
+					},
+				},
+				NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+			},
+		}
+
+		serviceName := strings.Replace(challenge.Name, ".", "-", -1)
+
+		service := &corev1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      serviceName,
+				Namespace: r.InfrastructureTargetNamespace,
+				Labels: map[string]string{
+					"app":  challenge.Name,
+					"hash": fmt.Sprintf("%x", md5Hash),
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Selector: map[string]string{
+					"app":  challenge.Name,
+					"hash": fmt.Sprintf("%x", md5Hash),
+				},
+				Ports: []corev1.ServicePort{
+					{
+						Name:       "http",
+						Port:       8089,
+						TargetPort: intstr.FromInt(8089),
+						Protocol:   corev1.ProtocolTCP,
+					},
+				},
+				Type: corev1.ServiceTypeNodePort,
+			},
+		}
+		pathTypeImplementationSpecific := networkingv1.PathTypeImplementationSpecific
+
+		ingress := &networkingv1.Ingress{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Ingress",
+				APIVersion: "networking.k8s.io/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      challenge.Name,
+				Namespace: r.InfrastructureTargetNamespace,
+				Annotations: map[string]string{
+					"nginx.ingress.kubernetes.io/whitelist-source-range": "0.0.0.0/0,::/0",
+				},
+				Labels: map[string]string{
+					"app":  challenge.Name,
+					"hash": fmt.Sprintf("%x", md5Hash),
+				},
+			},
+			Spec: networkingv1.IngressSpec{
+				IngressClassName: &serviceOwner.Spec.Cache,
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: challenge.Spec.DNSName,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     fmt.Sprintf("/.well-known/acme-challenge/%s", challenge.Spec.Token),
+										PathType: &pathTypeImplementationSpecific,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: serviceName,
+												Port: networkingv1.ServiceBackendPort{
+													Number: 8089,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		acmeSolverHelmValues := throwable.ThrowerHelmValues{
+			Resources: []any{deployment, service, ingress},
+		}
+
+		spec, annotations, hash, err := acmeSolverHelmValues.GetAppSetSpec(
+			throwable.AppsetSpecOptions{
+				ChartRepository: r.ThrowerChartRepository,
+				Chart:           r.ThrowerChartName,
+				ChartVersion:    r.ThrowerChartVersion,
+				Project:         r.InfrastructureApplicationSetProject,
+				TargetNamespace: r.InfrastructureTargetNamespace,
+				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
+				// Roll out for both routing and caching
+				LabelMatch: [][]metav1.LabelSelectorRequirement{
+					{
+						{
+							Key:      "edgecdnx.com/routing",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
+						},
+					},
+					{
+						{
+							Key:      "edgecdnx.com/caching",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
+						},
+					},
+				},
+			},
+		)
+
+		if err != nil {
+			log.Error(err, "Failed to get ApplicationSet spec for Challenge")
+			return ctrl.Result{}, err
+		}
+
+		// check if we have a corresponding Applicationset
+		appset := &argoprojv1alpha1.ApplicationSet{}
+
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      challenge.Name,
+			Namespace: req.Namespace,
+		}, appset); err != nil {
+			if client.IgnoreNotFound(err) != nil {
+				log.Error(err, "Failed to get ApplicationSet for Challenge")
+				return ctrl.Result{}, err
+			}
+			log.Info("No ApplicationSet found for Challenge, creating one")
+			// Create ApplicationSet logic here
+
+			objAnnotations := map[string]string{
+				ValuesHashAnnotation: hash,
+			}
+
+			maps.Copy(objAnnotations, annotations)
+			appset = &argoprojv1alpha1.ApplicationSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        challenge.Name,
+					Namespace:   challenge.Namespace,
+					Annotations: objAnnotations,
+				},
+				Spec: spec,
+			}
+
+			controllerutil.SetControllerReference(challenge, appset, r.Scheme)
+			return ctrl.Result{}, r.Create(ctx, appset)
+
+		} else {
+			log.Info("ApplicationSet already exists for Challenge", "name", appset.Name)
+			// Update ApplicationSet logic here if needed
+			if !appset.DeletionTimestamp.IsZero() {
+				log.Info("ApplicationSet for challenge is being deleted. Skipping reconciliation")
+				return ctrl.Result{}, nil
+			}
+
+			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			if !ok || currAppsetHash != hash {
+				log.Info("Updating ApplicationSet for challenge", "name", challenge.Name)
+				appset.Spec = spec
+				maps.Copy(appset.ObjectMeta.Annotations, annotations)
+				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+				return ctrl.Result{}, r.Update(ctx, appset)
+			}
+		}
+	} else {
+		log.Info(fmt.Sprintf("Challenge status %v. Not reconciling", challenge.Status))
+	}
+
+	return ctrl.Result{}, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *ChallengeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&acmev1.Challenge{}).
+		Complete(r)
+}
