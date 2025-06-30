@@ -51,66 +51,59 @@ type ChallengeReconciler struct {
 	ThrowerOptions
 }
 
-// TODO make this nicer
-func (r *ChallengeReconciler) GetServiceOwner(ctx context.Context, req ctrl.Request, challenge *acmev1.Challenge, service *infrastructurev1alpha1.Service) error {
-	challengeOwners := challenge.GetOwnerReferences()
-	for res := range challengeOwners {
-		if challengeOwners[res].Kind == "Order" && *challengeOwners[res].Controller {
-			order := &acmev1.Order{}
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      challengeOwners[res].Name,
-				Namespace: req.Namespace,
-			}, order); err != nil {
-				logf.FromContext(ctx).Error(err, "Failed to get Order for Challenge")
-				return err
-			}
-
-			orderOwners := order.GetOwnerReferences()
-			for res := range orderOwners {
-				if orderOwners[res].Kind == "CertificateRequest" && *orderOwners[res].Controller {
-					certReq := &certmanagerv1.CertificateRequest{}
-					if err := r.Get(ctx, types.NamespacedName{
-						Name:      orderOwners[res].Name,
-						Namespace: req.Namespace,
-					}, certReq); err != nil {
-						logf.FromContext(ctx).Error(err, "Failed to get CertificateRequest for CertificateRequest")
-						return err
-					}
-
-					certReqOwners := certReq.GetOwnerReferences()
-					for res := range certReqOwners {
-						if certReqOwners[res].Kind == "Certificate" && *certReqOwners[res].Controller {
-							cert := &certmanagerv1.Certificate{}
-							if err := r.Get(ctx, types.NamespacedName{
-								Name:      certReqOwners[res].Name,
-								Namespace: req.Namespace,
-							}, cert); err != nil {
-								logf.FromContext(ctx).Error(err, "Failed to get Certificate for CertificateRequest")
-								return err
-							}
-
-							certOwners := cert.GetOwnerReferences()
-							for res := range certOwners {
-								if certOwners[res].Kind == "Service" && *certOwners[res].Controller {
-									if err := r.Get(ctx, types.NamespacedName{
-										Name:      certOwners[res].Name,
-										Namespace: req.Namespace,
-									}, service); err != nil {
-										logf.FromContext(ctx).Error(err, "Failed to get Service for Certificate")
-										return err
-									}
-									return nil
-								}
-							}
-
-						}
-					}
+// GetOwnerInChain traverses the ownerReferences chain starting from obj and attempts to find and fetch
+// an object of the given targetKind into targetObj. The fetch is performed using the provided client.
+func GetOwnerInChain[
+	T client.Object,
+](ctx context.Context, c client.Client, obj client.Object, reqNamespace string, targetKind string, targetObj T) error {
+	currObj := obj
+	for {
+		owners := currObj.GetOwnerReferences()
+		found := false
+		for _, owner := range owners {
+			if owner.Kind == targetKind && owner.Controller != nil && *owner.Controller {
+				if err := c.Get(ctx, types.NamespacedName{
+					Name:      owner.Name,
+					Namespace: reqNamespace,
+				}, targetObj); err != nil {
+					logf.FromContext(ctx).Error(err, "Failed to get object", "kind", targetKind)
+					return err
 				}
+				return nil
+			}
+			// Traverse to next owner if not found yet
+			if owner.Controller != nil && *owner.Controller {
+				// Dynamically create the next object based on kind
+				var nextObj client.Object
+				switch owner.Kind {
+				case "Order":
+					nextObj = &acmev1.Order{}
+				case "CertificateRequest":
+					nextObj = &certmanagerv1.CertificateRequest{}
+				case "Certificate":
+					nextObj = &certmanagerv1.Certificate{}
+				case "Service":
+					nextObj = &infrastructurev1alpha1.Service{}
+				default:
+					continue
+				}
+				if err := c.Get(ctx, types.NamespacedName{
+					Name:      owner.Name,
+					Namespace: reqNamespace,
+				}, nextObj); err != nil {
+					logf.FromContext(ctx).Error(err, "Failed to get object", "kind", owner.Kind)
+					return err
+				}
+				currObj = nextObj
+				found = true
+				break
 			}
 		}
+		if !found {
+			break
+		}
 	}
-
-	return errors.New("No Service found in owner Chain")
+	return errors.New("No object of kind " + targetKind + " found in owner chain")
 }
 
 // +kubebuilder:rbac:groups=acme.cert-manager.io/v1,resources=challenges,verbs=get;list;watch
@@ -131,7 +124,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	serviceOwner := &infrastructurev1alpha1.Service{}
-	err := r.GetServiceOwner(ctx, req, challenge, serviceOwner)
+	err := GetOwnerInChain(ctx, r.Client, challenge, req.Namespace, "Service", serviceOwner)
 	if err != nil {
 		log.Error(err, "Failed to get Service owner for Challenge")
 		return ctrl.Result{}, err
@@ -145,7 +138,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	md5Hash := md5.Sum([]byte(challengeSpec))
 
 	if challenge.Status.Presented && challenge.Status.Processing {
-		deployment := &corev1.Pod{
+		pod := &corev1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Pod",
 				APIVersion: "v1",
@@ -274,7 +267,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		acmeSolverHelmValues := throwable.ThrowerHelmValues{
-			Resources: []any{deployment, service, ingress},
+			Resources: []any{pod, service, ingress},
 		}
 
 		spec, annotations, hash, err := acmeSolverHelmValues.GetAppSetSpec(
@@ -287,13 +280,6 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
 				// Roll out for both routing and caching
 				LabelMatch: [][]metav1.LabelSelectorRequirement{
-					{
-						{
-							Key:      "edgecdnx.com/routing",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
 					{
 						{
 							Key:      "edgecdnx.com/caching",

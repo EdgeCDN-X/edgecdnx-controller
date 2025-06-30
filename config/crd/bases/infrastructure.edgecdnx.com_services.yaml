@@ -41,6 +41,17 @@ spec:
             properties:
               cache:
                 type: string
+              certificate:
+                properties:
+                  certificateRef:
+                    type: string
+                  crt:
+                    type: string
+                  key:
+                    type: string
+                  secretRef:
+                    type: string
+                type: object
               customer:
                 properties:
                   id:
@@ -74,6 +85,7 @@ spec:
                   type: object
                 type: array
             required:
+            - certificate
             - customer
             type: object
           status:

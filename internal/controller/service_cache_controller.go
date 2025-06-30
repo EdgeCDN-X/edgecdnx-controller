@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -113,11 +114,61 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 		},
 	}
 
+	if service.Spec.Certificate.Key != "" && service.Spec.Certificate.Crt != "" {
+		marshable.Spec.TLS = []networkingv1.IngressTLS{
+			{
+				Hosts:      []string{service.Spec.Domain},
+				SecretName: service.Name + "-tls",
+			},
+		}
+	}
+
 	hashable, err := json.Marshal(marshable)
 	if err != nil {
 		return networkingv1.IngressSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
 	}
 	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
+}
+
+func (r *ServiceCacheReconciler) getSecretCache(service *infrastructurev1alpha1.Service) (v1.Secret, map[string]string, string, error) {
+	secretName := service.Name + "-tls"
+
+	marshable := v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        secretName,
+			Namespace:   service.Namespace,
+			Annotations: map[string]string{},
+		},
+		Type: v1.SecretTypeTLS,
+		Data: map[string][]byte{},
+	}
+
+	if service.Spec.Certificate.Key != "" {
+		tlsKey, err := base64.StdEncoding.DecodeString(service.Spec.Certificate.Key)
+		if err != nil {
+			return v1.Secret{}, make(map[string]string), "", fmt.Errorf("failed to decode TLS key")
+		}
+
+		marshable.Data["tls.key"] = tlsKey
+	} else {
+		marshable.Data["tls.key"] = []byte{}
+	}
+
+	if service.Spec.Certificate.Crt != "" {
+		tlsCrt, err := base64.StdEncoding.DecodeString(service.Spec.Certificate.Crt)
+		if err != nil {
+			return v1.Secret{}, make(map[string]string), "", fmt.Errorf("failed to decode CRT")
+		}
+		marshable.Data["tls.crt"] = tlsCrt
+	} else {
+		marshable.Data["tls.crt"] = []byte{}
+	}
+
+	hashable, err := json.Marshal(marshable)
+	if err != nil {
+		return v1.Secret{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
+	}
+	return marshable, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
 }
 
 func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1.Service) (v1.ServiceSpec, map[string]string, string, error) {
@@ -225,6 +276,55 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 
+		// Find Certificate Secret Resource
+		secret := &v1.Secret{}
+		secretName := service.Name + "-tls"
+		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: secretName}, secret)
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Info("Secret not found for service")
+
+				nSecret, annotations, hash, err := r.getSecretCache(service)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
+				}
+
+				maps.Copy(objAnnotations, annotations)
+				nSecret.Annotations = objAnnotations
+
+				controllerutil.SetControllerReference(service, &nSecret, r.Scheme)
+				err = r.Create(ctx, &nSecret)
+				if err != nil {
+					log.Error(err, "unable to create Secret for Service", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
+			} else {
+				log.Error(err, "unable to fetch Secret for Service", "Service", service.Name)
+				return ctrl.Result{}, err
+			}
+		} else {
+			nSecret, annotations, hash, err := r.getSecretCache(service)
+
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			curHash, ok := secret.Annotations[ValuesHashAnnotation]
+			if !ok || curHash != hash {
+
+				log.Info("Updating Secret for Service", "Service", service.Name)
+
+				secret.Annotations = annotations
+				secret.Data = nSecret.Data
+				return ctrl.Result{}, r.Update(ctx, secret)
+			}
+		}
+
 		// Find ingress resource
 		ingress := &networkingv1.Ingress{}
 		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, ingress)
@@ -261,7 +361,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 			} else {
 				log.Error(err, "unable to fetch Ingress", "Service", service.Name)
-				return ctrl.Result{Requeue: true}, err
+				return ctrl.Result{}, err
 			}
 		} else {
 			spec, annotations, hash, err := r.getIngressCache(service)
@@ -298,6 +398,7 @@ func (r *ServiceCacheReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Service{}).
 		Owns(&v1.Service{}).
+		Owns(&v1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Complete(r)
 }

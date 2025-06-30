@@ -36,10 +36,18 @@ type CustomerSpec struct {
 	Id   int    `json:"id,omitempty"`
 }
 
+type CertificateSpec struct {
+	CertificateRef string `json:"certificateRef,omitempty"`
+	SecretRef      string `json:"secretRef,omitempty"`
+	Crt            string `json:"crt,omitempty"`
+	Key            string `json:"key,omitempty"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
-	Name   string `json:"name,omitempty"`
-	Domain string `json:"domain,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Domain      string          `json:"domain,omitempty"`
+	Certificate CertificateSpec `json:"certificate"`
 	// +kubebuilder:validation:Enum=s3;static
 	OriginType    string             `json:"originType,omitempty"`
 	StaticOrigins []StaticOriginSpec `json:"staticOrigins,omitempty"`

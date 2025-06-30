@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -111,8 +112,6 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		appset := &argoprojv1alpha1.ApplicationSet{}
-
 		resource := &infrastructurev1alpha1.Service{
 			TypeMeta: service.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
@@ -121,90 +120,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			},
 			Spec: service.Spec,
 		}
-		serviceHelmValues := throwable.ThrowerHelmValues{
-			Resources: []any{resource},
-		}
-
-		// ################ START - Application Spec section
-		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(
-			throwable.AppsetSpecOptions{
-				ChartRepository: r.ThrowerChartRepository,
-				Chart:           r.ThrowerChartName,
-				ChartVersion:    r.ThrowerChartVersion,
-				Project:         r.InfrastructureApplicationSetProject,
-				TargetNamespace: r.InfrastructureTargetNamespace,
-				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
-				// Roll out for both routing and caching
-				LabelMatch: [][]metav1.LabelSelectorRequirement{
-					{
-						{
-							Key:      "edgecdnx.com/routing",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
-					{
-						{
-							Key:      "edgecdnx.com/caching",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
-				},
-			},
-		)
-
-		if err != nil {
-			log.Error(err, "Failed to get ApplicationSet spec for Service")
-			return ctrl.Result{}, err
-		}
-
-		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, appset)
-
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				log.Info("Creating ApplicationSet for Service", "name", service.Name)
-
-				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
-				}
-
-				maps.Copy(objAnnotations, annotations)
-				appset = &argoprojv1alpha1.ApplicationSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        service.Name,
-						Namespace:   service.Namespace,
-						Annotations: objAnnotations,
-					},
-					Spec: spec,
-				}
-
-				controllerutil.SetControllerReference(service, appset, r.Scheme)
-				return ctrl.Result{}, r.Create(ctx, appset)
-			} else {
-				log.Error(err, "unable to fetch ApplicationSet for service")
-				return ctrl.Result{}, err
-			}
-		} else {
-			if !appset.DeletionTimestamp.IsZero() {
-				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
-				return ctrl.Result{}, nil
-			}
-
-			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
-			if !ok || currAppsetHash != hash {
-				log.Info("Updating ApplicationSet for Service", "name", service.Name)
-				appset.Spec = spec
-				maps.Copy(appset.ObjectMeta.Annotations, annotations)
-				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
-				return ctrl.Result{}, r.Update(ctx, appset)
-			}
-		}
-
-		// ################ END - Application Spec section
 
 		// ################ START - Certificate Issuance section
-
 		certSpec, annotations, hash, err := r.GetCertificateSpec(service)
 		if err != nil {
 			log.Error(err, "Failed to get Certificate spec for Service")
@@ -252,7 +169,6 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 
-		// TODO, this should run before the ApplicationSet is created.
 		// Check if certificate is issuing
 		for cc := range cert.Status.Conditions {
 			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionReady && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
@@ -260,20 +176,103 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: cert.Spec.SecretName}, secret)
 				if err != nil {
 					if apierrors.IsNotFound(err) {
-						return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+						return ctrl.Result{}, nil
 					}
 					log.Error(err, "unable to fetch Certificate Secret for Service")
 					return ctrl.Result{}, err
 				}
+
+				// Pass down the certificate to the resource
+				resource.Spec.Certificate = infrastructurev1alpha1.CertificateSpec{
+					Key: base64.StdEncoding.EncodeToString(secret.Data["tls.key"]),
+					Crt: base64.StdEncoding.EncodeToString(secret.Data["tls.crt"]),
+				}
+			}
+		}
+
+		// ################ START - Application Spec section
+		serviceHelmValues := throwable.ThrowerHelmValues{
+			Resources: []any{resource},
+		}
+
+		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(
+			throwable.AppsetSpecOptions{
+				ChartRepository: r.ThrowerChartRepository,
+				Chart:           r.ThrowerChartName,
+				ChartVersion:    r.ThrowerChartVersion,
+				Project:         r.InfrastructureApplicationSetProject,
+				TargetNamespace: r.InfrastructureTargetNamespace,
+				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
+				// Roll out for both routing and caching
+				LabelMatch: [][]metav1.LabelSelectorRequirement{
+					{
+						{
+							Key:      "edgecdnx.com/routing",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
+						},
+					},
+					{
+						{
+							Key:      "edgecdnx.com/caching",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"true", "yes"},
+						},
+					},
+				},
+			},
+		)
+
+		if err != nil {
+			log.Error(err, "Failed to get ApplicationSet spec for Service")
+			return ctrl.Result{}, err
+		}
+
+		appset := &argoprojv1alpha1.ApplicationSet{}
+		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, appset)
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Info("Creating ApplicationSet for Service", "name", service.Name)
+
+				objAnnotations := map[string]string{
+					ValuesHashAnnotation: hash,
+				}
+
+				maps.Copy(objAnnotations, annotations)
+				appset = &argoprojv1alpha1.ApplicationSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        service.Name,
+						Namespace:   service.Namespace,
+						Annotations: objAnnotations,
+					},
+					Spec: spec,
+				}
+
+				controllerutil.SetControllerReference(service, appset, r.Scheme)
+				return ctrl.Result{}, r.Create(ctx, appset)
+			} else {
+				log.Error(err, "unable to fetch ApplicationSet for service")
+				return ctrl.Result{}, err
+			}
+		} else {
+			if !appset.DeletionTimestamp.IsZero() {
+				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
+				return ctrl.Result{}, nil
 			}
 
-			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionIssuing && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
-				log.Info("Certificate is still issuing for Service")
-				return ctrl.Result{}, nil
+			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			if !ok || currAppsetHash != hash {
+				log.Info("Updating ApplicationSet for Service", "name", service.Name)
+				appset.Spec = spec
+				maps.Copy(appset.ObjectMeta.Annotations, annotations)
+				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+				return ctrl.Result{}, r.Update(ctx, appset)
 			}
 		}
 
 		// ################ END - Application Spec section
+
 		if service.Status.Status != HealthStatusHealthy {
 			service.Status = infrastructurev1alpha1.ServiceStatus{
 				Status: HealthStatusHealthy,
@@ -283,6 +282,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		return ctrl.Result{}, nil
 	} else {
+		// Set status to Pogressing if no satatus
 		service.Status = infrastructurev1alpha1.ServiceStatus{
 			Status: HealthStatusProgressing,
 		}
