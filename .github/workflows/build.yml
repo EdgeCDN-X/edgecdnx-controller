@@ -1,12 +1,9 @@
 name: Build and Push Docker Image
 on:
-  workflow_run:
-    workflows: ["E2E Tests"]
+  push:
     branches: [main]
     tags:
       - 'v*'
-    types: 
-      - completed
 
 jobs:
   build:
