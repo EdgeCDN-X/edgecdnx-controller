@@ -87,6 +87,9 @@ func main() {
 	// Role
 	var role string
 
+	// Consul Endpoint - no TLS or auth support for now
+	var consulEndpoint string
+
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -106,7 +109,9 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	flag.StringVar(&role, "role", "controller", "The role of this instance. Can be 'controller', runs on control plane, 'cache-controller', runs on edge nodes")
+	flag.StringVar(&role, "role", "controller", "The role of this instance. Can be 'controller', runs on control plane, 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
+
+	flag.StringVar(&consulEndpoint, "consul-endpoint", "http://edgecdnx-consul-consul-server:8500", "Default Consul Endpoint")
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -343,6 +348,17 @@ func main() {
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ServiceCache")
+			os.Exit(1)
+		}
+	}
+
+	if role == "router" {
+		if err = (&controller.LocationRoutingReconciler{
+			Client:         mgr.GetClient(),
+			Scheme:         mgr.GetScheme(),
+			ConsulEndpoint: consulEndpoint,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "LocationRouting")
 			os.Exit(1)
 		}
 	}
