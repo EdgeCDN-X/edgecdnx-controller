@@ -111,6 +111,11 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 			"nginx.ingress.kubernetes.io/backend-protocol":      strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
 			"nginx.ingress.kubernetes.io/upstream-vhost":        service.Spec.StaticOrigins[0].HostHeader,
 			"nginx.ingress.kubernetes.io/configuration-snippet": configSnippet.String(),
+			"nginx.ingress.kubernetes.io/server-snippet": `
+location /.edgecdnx/healthz {
+	return 200 "OK";
+}
+			`,
 		},
 	}
 
