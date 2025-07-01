@@ -103,6 +103,8 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	location := &infrastructurev1alpha1.Location{}
 
+	//TODO add finalizer to Location and remove it when location is deleted including Consul
+
 	// Object not found
 	if err := r.Get(ctx, req.NamespacedName, location); err != nil {
 		if client.IgnoreNotFound(err) != nil {
@@ -213,6 +215,7 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 // SetupWithManager sets up the controller with the Manager.
 func (r *LocationRoutingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	config := consulapi.DefaultConfig()
+	config.Address = r.ConsulEndpoint
 	consul, err := consulapi.NewClient(config)
 	if err != nil {
 		logf.Log.Error(err, "Failed to create Consul client")
