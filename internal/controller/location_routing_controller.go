@@ -59,14 +59,11 @@ func (r *LocationRoutingReconciler) getConsulNodeInstance(location *infrastructu
 				Address: location.Spec.Nodes[idx].Ipv4,
 				Port:    80,
 			},
-			Checks: []*consulapi.HealthCheck{
-				{
-					CheckID:   fmt.Sprintf("service:cache-%s", nodeName),
-					ServiceID: fmt.Sprintf("cache-%s", nodeName),
-					Definition: consulapi.HealthCheckDefinition{
-						HTTP:             fmt.Sprintf("http://%s/healthz", location.Spec.Nodes[idx].Ipv4),
-						IntervalDuration: 30 * time.Second,
-					},
+			Check: &consulapi.AgentCheck{
+				CheckID: fmt.Sprintf("service:cache-%s", nodeName),
+				Definition: consulapi.HealthCheckDefinition{
+					HTTP:             fmt.Sprintf("http://%s/healthz", location.Spec.Nodes[idx].Ipv4),
+					IntervalDuration: 10 * time.Second,
 				},
 			},
 		},
