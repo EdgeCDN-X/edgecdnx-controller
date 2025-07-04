@@ -43,6 +43,12 @@ type CertificateSpec struct {
 	Key            string `json:"key,omitempty"`
 }
 
+type SecureKeySpec struct {
+	Name      string      `json:"name,omitempty"`
+	Value     string      `json:"value,omitempty"`
+	CreatedAt metav1.Time `json:"createdAt"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
 	Name        string          `json:"name,omitempty"`
@@ -51,9 +57,9 @@ type ServiceSpec struct {
 	// +kubebuilder:validation:Enum=s3;static
 	OriginType    string             `json:"originType,omitempty"`
 	StaticOrigins []StaticOriginSpec `json:"staticOrigins,omitempty"`
-
-	Customer CustomerSpec `json:"customer"`
-	Cache    string       `json:"cache,omitempty"`
+	SecureKeys    []SecureKeySpec    `json:"secureKeys,omitempty"`
+	Customer      CustomerSpec       `json:"customer"`
+	Cache         string             `json:"cache,omitempty"`
 }
 
 // ServiceStatus defines the observed state of Service.

@@ -68,6 +68,20 @@ spec:
                 - s3
                 - static
                 type: string
+              secureKeys:
+                items:
+                  properties:
+                    createdAt:
+                      format: date-time
+                      type: string
+                    name:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - createdAt
+                  type: object
+                type: array
               staticOrigins:
                 items:
                   properties:
