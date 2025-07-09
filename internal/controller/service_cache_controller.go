@@ -44,7 +44,8 @@ import (
 // ServiceCacheReconciler reconciles a Service object
 type ServiceCacheReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme             *runtime.Scheme
+	SecureUrlsEndpoint string
 }
 
 func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1.Service) (networkingv1.IngressSpec, map[string]string, string, error) {
@@ -126,6 +127,10 @@ location /.edgecdnx/healthz {
 				SecretName: service.Name + "-tls",
 			},
 		}
+	}
+
+	if service.Spec.SecureKeys != nil && len(service.Spec.SecureKeys) > 0 {
+		marshable.Annotations["nginx.ingress.kubernetes.io/auth-url"] = r.SecureUrlsEndpoint
 	}
 
 	hashable, err := json.Marshal(marshable)
