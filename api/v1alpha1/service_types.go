@@ -31,6 +31,24 @@ type StaticOriginSpec struct {
 	Scheme string `json:"scheme,omitempty"`
 }
 
+type S3OriginSpec struct {
+	// +kubebuilder:validation:Enum=2;4
+	AwsSigsVersion int    `json:"awsSigsVersion"`
+	S3AccessKeyId  string `json:"s3AccessKeyId"`
+	S3SecretKey    string `json:"s3SecretKey"`
+
+	// AWS Endpoints
+	S3BucketName string `json:"s3BucketName"`
+	S3Region     string `json:"s3Region"`
+
+	// Custom S3 endpoitns
+	S3Server      string `json:"s3Server,omitempty"`
+	S3ServerProto string `json:"s3ServerProto,omitempty"`
+	S3ServerPort  int    `json:"s3ServerPort,omitempty"`
+	// +kubebuilder:validation:Enum=virtual;path
+	S3Style string `json:"s3Style,omitempty"`
+}
+
 type CustomerSpec struct {
 	Name string `json:"name,omitempty"`
 	Id   int    `json:"id,omitempty"`
@@ -57,6 +75,7 @@ type ServiceSpec struct {
 	// +kubebuilder:validation:Enum=s3;static
 	OriginType    string             `json:"originType,omitempty"`
 	StaticOrigins []StaticOriginSpec `json:"staticOrigins,omitempty"`
+	S3OriginSpec  []S3OriginSpec     `json:"s3OriginSpec,omitempty"`
 	SecureKeys    []SecureKeySpec    `json:"secureKeys,omitempty"`
 	Customer      CustomerSpec       `json:"customer"`
 	Cache         string             `json:"cache,omitempty"`

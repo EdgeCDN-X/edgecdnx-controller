@@ -68,6 +68,43 @@ spec:
                 - s3
                 - static
                 type: string
+              s3OriginSpec:
+                items:
+                  properties:
+                    awsSigsVersion:
+                      enum:
+                      - 2
+                      - 4
+                      type: integer
+                    s3AccessKeyId:
+                      type: string
+                    s3BucketName:
+                      description: AWS Endpoints
+                      type: string
+                    s3Region:
+                      type: string
+                    s3SecretKey:
+                      type: string
+                    s3Server:
+                      description: Custom S3 endpoitns
+                      type: string
+                    s3ServerPort:
+                      type: integer
+                    s3ServerProto:
+                      type: string
+                    s3Style:
+                      enum:
+                      - virtual
+                      - path
+                      type: string
+                  required:
+                  - awsSigsVersion
+                  - s3AccessKeyId
+                  - s3BucketName
+                  - s3Region
+                  - s3SecretKey
+                  type: object
+                type: array
               secureKeys:
                 items:
                   properties:
