@@ -119,11 +119,11 @@ func (r *ServiceCacheReconciler) getS3GatewayDeploymentSpecs(service *infrastruc
 							},
 							Env: []v1.EnvVar{
 								{
-									Name:  "S3_ACCESS_KEY_ID",
+									Name:  "AWS_ACCESS_KEY_ID",
 									Value: service.Spec.S3OriginSpec[0].S3AccessKeyId,
 								},
 								{
-									Name:  "S3_SECRET_KEY",
+									Name:  "AWS_SECRET_ACCESS_KEY",
 									Value: service.Spec.S3OriginSpec[0].S3SecretKey,
 								},
 								{
@@ -150,6 +150,32 @@ func (r *ServiceCacheReconciler) getS3GatewayDeploymentSpecs(service *infrastruc
 									Name:  "S3_STYLE",
 									Value: service.Spec.S3OriginSpec[0].S3Style,
 								},
+								{
+									Name:  "AWS_SIGS_VERSION",
+									Value: fmt.Sprintf("%d", service.Spec.S3OriginSpec[0].AwsSigsVersion),
+								},
+								{
+									Name:  "ALLOW_DIRECTORY_LIST",
+									Value: "false",
+								},
+							},
+							ReadinessProbe: &v1.Probe{
+								InitialDelaySeconds: 3,
+								ProbeHandler: v1.ProbeHandler{
+									HTTPGet: &v1.HTTPGetAction{
+										Path: "/health",
+										Port: intstr.FromInt(80),
+									},
+								},
+							},
+							LivenessProbe: &v1.Probe{
+								InitialDelaySeconds: 3,
+								ProbeHandler: v1.ProbeHandler{
+									HTTPGet: &v1.HTTPGetAction{
+										Path: "/health",
+										Port: intstr.FromInt(80),
+									},
+								},
 							},
 						},
 					},
@@ -171,7 +197,7 @@ func (r *ServiceCacheReconciler) getS3GatewayDeploymentSpecs(service *infrastruc
 
 func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1.Service) (networkingv1.IngressSpec, map[string]string, string, error) {
 	extServiceName := strings.Replace(service.Name, ".", "-", -1)
-	s3GatewayServiceName := service.Name + "-s3-gateway"
+	s3GatewayServiceName := extServiceName + "-s3-gateway"
 
 	pathTypeImplementationSpecific := networkingv1.PathTypeImplementationSpecific
 
@@ -218,8 +244,6 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 			},
 		},
 		Annotations: map[string]string{
-			"nginx.ingress.kubernetes.io/backend-protocol":      strings.ToUpper(service.Spec.StaticOrigins[0].Scheme),
-			"nginx.ingress.kubernetes.io/upstream-vhost":        service.Spec.StaticOrigins[0].HostHeader,
 			"nginx.ingress.kubernetes.io/configuration-snippet": configSnippet.String(),
 			"nginx.ingress.kubernetes.io/server-snippet": `
 location /.edgecdnx/healthz {
@@ -243,6 +267,8 @@ location /.edgecdnx/healthz {
 	}
 
 	if service.Spec.OriginType == "static" {
+		marshable.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = strings.ToUpper(service.Spec.StaticOrigins[0].Scheme)
+		marshable.Annotations["nginx.ingress.kubernetes.io/upstream-vhost"] = service.Spec.StaticOrigins[0].HostHeader
 		marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths = append(marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths, networkingv1.HTTPIngressPath{
 			Path:     "/",
 			PathType: &pathTypeImplementationSpecific,
@@ -265,7 +291,7 @@ location /.edgecdnx/healthz {
 				Service: &networkingv1.IngressServiceBackend{
 					Name: s3GatewayServiceName,
 					Port: networkingv1.ServiceBackendPort{
-						Number: int32(service.Spec.StaticOrigins[0].Port),
+						Number: int32(80),
 					},
 				},
 			},
@@ -416,7 +442,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				spec, annotations, hash, err := r.getServiceCache(service)
 
 				if err != nil {
-					return ctrl.Result{}, err
+					return ctrl.Result{Requeue: true}, err
 				}
 
 				curHash, ok := extService.Annotations[ValuesHashAnnotation]
@@ -492,7 +518,8 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// S3 Service
 		log.Info("Checking S3 Service for Service", "Service", service.Name)
 		s3Service := &v1.Service{}
-		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name + "-s3-gateway"}, s3Service)
+		s3ServiceName := fmt.Sprintf("%s-s3-gateway", strings.Replace(service.Name, ".", "-", -1))
+		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: s3ServiceName}, s3Service)
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -508,7 +535,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					maps.Copy(objAnnotations, annotations)
 					s3Service = &v1.Service{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:        service.Name + "-s3-gateway",
+							Name:        s3ServiceName,
 							Namespace:   service.Namespace,
 							Annotations: objAnnotations,
 						},
