@@ -110,7 +110,7 @@ func (r *ServiceCacheReconciler) getS3GatewayDeploymentSpecs(service *infrastruc
 					Containers: []v1.Container{
 						{
 							Name:  "s3gateway",
-							Image: "nginxinc/nginx-s3-gateway:latest-njs-oss-20250709",
+							Image: "fr6nco/nginx-s3-gateway:latest",
 							Ports: []v1.ContainerPort{
 								{
 									Name:          "http",
