@@ -395,12 +395,15 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
+	if !service.ObjectMeta.DeletionTimestamp.IsZero() {
+		log.Info("Service is being deleted, ignoring reconcile loop")
+		return ctrl.Result{}, nil
+	}
 
+	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
 		// Find ExternalName Service
 		extService := &v1.Service{}
 		extServiceName := strings.Replace(service.Name, ".", "-", -1)
-
 		err := r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: extServiceName}, extService)
 
 		if err != nil {
@@ -459,12 +462,13 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		// S3Gateway Deployment
+		deploymentName := strings.Replace(service.Name, ".", "-", -1) + "-s3gateway"
 		deployment := &appsv1.Deployment{}
-		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name + "-s3gateway"}, deployment)
+		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: deploymentName}, deployment)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				if service.Spec.OriginType == "s3" {
-					log.Info("S3Gateway Deployment not found, creating it", "Service", service.Name)
+					log.Info("S3Gateway Deployment not found, creating it")
 
 					spec, annotations, hash, err := r.getS3GatewayDeploymentSpecs(service)
 					if err != nil {
@@ -479,7 +483,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 					deployment = &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:        service.Name + "-s3gateway",
+							Name:        deploymentName,
 							Namespace:   service.Namespace,
 							Annotations: objAnnotations,
 						},
@@ -695,6 +699,7 @@ func (r *ServiceCacheReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&infrastructurev1alpha1.Service{}).
 		Owns(&v1.Service{}).
 		Owns(&v1.Secret{}).
+		Owns(&appsv1.Deployment{}).
 		Owns(&networkingv1.Ingress{}).
 		Complete(r)
 }
