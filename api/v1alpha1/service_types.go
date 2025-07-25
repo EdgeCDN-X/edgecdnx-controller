@@ -67,6 +67,11 @@ type SecureKeySpec struct {
 	CreatedAt metav1.Time `json:"createdAt"`
 }
 
+type CacheKeySpec struct {
+	QueryParams []string `json:"queryParams,omitempty"`
+	Headers     []string `json:"headers,omitempty"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
 	Name        string          `json:"name,omitempty"`
@@ -79,6 +84,7 @@ type ServiceSpec struct {
 	SecureKeys    []SecureKeySpec    `json:"secureKeys,omitempty"`
 	Customer      CustomerSpec       `json:"customer"`
 	Cache         string             `json:"cache,omitempty"`
+	CacheKeySpec  CacheKeySpec       `json:"cacheKey"`
 }
 
 // ServiceStatus defines the observed state of Service.

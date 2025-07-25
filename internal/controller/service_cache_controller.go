@@ -212,6 +212,39 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 	proxy_cache_revalidate on;
 	proxy_cache_lock on;
 	add_header X-EX-Status $upstream_cache_status;
+
+	{{- if .CacheKeySpec.QueryParams }}
+	set $proxy_cache_key "";
+	set $new_args "";
+	set $req_args $args;
+
+	{{- with .CacheKeySpec.QueryParams }}
+	{{- range . }}
+	if ($req_args ~* (.*)(?<!=){{ . }}(=?)([^&]*)(.*)) {
+		set $new_args "${new_args}{{ . }}$2$3&";
+	}
+	{{- end }}
+	{{- end }}
+
+	if ($new_args ~ (.*)&$) {
+		set $new_args $1;
+	}
+
+	if ($new_args ~ "") {
+		set $proxy_cache_key "$proxy_host$uri";
+	}
+
+	if ($new_args ~ ".+") {
+		set $proxy_cache_key "$proxy_host$uri$is_args$new_args";
+	}
+
+	{{- else }}
+	set $proxy_cache_key "$proxy_host$uri";
+	{{- end }}
+
+	proxy_cache_key $proxy_cache_key;
+	add_header X-Cache-Key $proxy_cache_key;
+
 	`
 
 	tmpl, err := template.New("nginxconfigsnippet").Parse(configSnippetTemplate)
@@ -250,6 +283,10 @@ location /.edgecdnx/healthz {
 	return 200 "OK";
 }
 			`,
+			"nginx.ingress.kubernetes.io/enable-cors":            "true",
+			"nginx.ingress.kubernetes.io/cors-allow-methods":     "GET,OPTIONS,HEAD",
+			"nginx.ingress.kubernetes.io/cors-allow-origin":      "*",
+			"nginx.ingress.kubernetes.io/cors-allow-credentials": "true",
 		},
 	}
 

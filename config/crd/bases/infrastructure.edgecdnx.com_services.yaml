@@ -41,6 +41,17 @@ spec:
             properties:
               cache:
                 type: string
+              cacheKey:
+                properties:
+                  headers:
+                    items:
+                      type: string
+                    type: array
+                  queryParams:
+                    items:
+                      type: string
+                    type: array
+                type: object
               certificate:
                 properties:
                   certificateRef:
@@ -136,6 +147,7 @@ spec:
                   type: object
                 type: array
             required:
+            - cacheKey
             - certificate
             - customer
             type: object
