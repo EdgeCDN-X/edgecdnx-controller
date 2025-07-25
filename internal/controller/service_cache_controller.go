@@ -234,10 +234,8 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 	}
 	{{- end }}
 
-	set $cache_key $proxy_host$uri$is_args$args
-
-	proxy_cache_key $cache_key;
-	add_header X-Cache-Key $cache_key;
+	proxy_cache_key $proxy_host$uri$is_args$args;
+	add_header X-Cache-Key $proxy_host$uri$is_args$args;
 	add_header X-EX-Status $upstream_cache_status;
 	`
 
