@@ -211,40 +211,34 @@ func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1
 	proxy_cache_background_update on;
 	proxy_cache_revalidate on;
 	proxy_cache_lock on;
-	add_header X-EX-Status $upstream_cache_status;
-
-	{{- if .CacheKeySpec.QueryParams }}
-	set $proxy_cache_key "";
-	set $new_args "";
-	set $req_args $args;
 
 	{{- with .CacheKeySpec.QueryParams }}
-	{{- range . }}
-	if ($req_args ~* (.*)(?<!=){{ . }}(=?)([^&]*)(.*)) {
-		set $new_args "${new_args}{{ . }}$2$3&";
+	access_by_lua_block {
+		local h, err = ngx.req.get_uri_args()
+		local allowed_headers = { {{ range . }}"{{ . }}",{{ end }} }
+
+		for k, v in pairs(h) do
+			local found = false
+			for _, allowed in ipairs(allowed_headers) do
+				if k == allowed then
+					found = true
+					break
+				end
+			end
+			if not found then
+				h[k] = nil
+			end
+		end
+
+		ngx.req.set_uri_args(h)
 	}
 	{{- end }}
-	{{- end }}
 
-	if ($new_args ~ (.*)&$) {
-		set $new_args $1;
-	}
+	set $cache_key $proxy_host$uri$is_args$args
 
-	if ($new_args ~ "") {
-		set $proxy_cache_key "$proxy_host$uri";
-	}
-
-	if ($new_args ~ ".+") {
-		set $proxy_cache_key "$proxy_host$uri$is_args$new_args";
-	}
-
-	{{- else }}
-	set $proxy_cache_key "$proxy_host$uri";
-	{{- end }}
-
-	proxy_cache_key $proxy_cache_key;
-	add_header X-Cache-Key $proxy_cache_key;
-
+	proxy_cache_key $cache_key;
+	add_header X-Cache-Key $cache_key;
+	add_header X-EX-Status $upstream_cache_status;
 	`
 
 	tmpl, err := template.New("nginxconfigsnippet").Parse(configSnippetTemplate)
