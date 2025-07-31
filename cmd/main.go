@@ -138,7 +138,7 @@ func main() {
 	flag.StringVar(
 		&infrastructureTargetNamespace,
 		"infrastructure-target-namespace",
-		"edgecdnx-routing",
+		"edgecdnx",
 		"The namespace where the infrastructure resources are deployed.",
 	)
 	flag.StringVar(
