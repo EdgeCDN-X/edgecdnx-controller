@@ -20,71 +20,106 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 type StaticOriginSpec struct {
-	Upstream   string `json:"upstream,omitempty"`
-	Port       int    `json:"port,omitempty"`
+	// Specifies the Upsteram URL for the static origin
+	Upstream string `json:"upstream,omitempty"`
+	// Specifies the port for the static origin
+	Port int `json:"port,omitempty"`
+	// Specifies the Host Header to be used for the static origin
 	HostHeader string `json:"hostHeader,omitempty"`
+	// Specifies the Scheme for the static origin
 	// +kubebuilder:validation:Enum=Http;Https
 	Scheme string `json:"scheme,omitempty"`
 }
 
 type S3OriginSpec struct {
+	// Specifies the S3 Bucket Signature version for the origin
 	// +kubebuilder:validation:Enum=2;4
-	AwsSigsVersion int    `json:"awsSigsVersion"`
-	S3AccessKeyId  string `json:"s3AccessKeyId"`
-	S3SecretKey    string `json:"s3SecretKey"`
+	AwsSigsVersion int `json:"awsSigsVersion"`
+	// Specifies the Access Key ID for the private s3 origin
+	S3AccessKeyId string `json:"s3AccessKeyId"`
+	// Specifies the Secret Access Key for the private s3 origin
+	S3SecretKey string `json:"s3SecretKey"`
 
-	// AWS Endpoints
+	// Specifies the S3 Bucket Name for the private s3 origin
 	S3BucketName string `json:"s3BucketName"`
-	S3Region     string `json:"s3Region"`
+	// Specifies the S3 Region for the private s3 origin
+	S3Region string `json:"s3Region"`
 
-	// Custom S3 endpoitns
-	S3Server      string `json:"s3Server,omitempty"`
+	// Specifies the S3 Server for the private s3 origin
+	S3Server string `json:"s3Server,omitempty"`
+	// Specifies the S3 Server Protocol for the private s3 origin
 	S3ServerProto string `json:"s3ServerProto,omitempty"`
-	S3ServerPort  int    `json:"s3ServerPort,omitempty"`
+	// Specifies the S3 Server Port for the private s3 origin
+	S3ServerPort int `json:"s3ServerPort,omitempty"`
+	// Specifies the S3 Server Style for the private s3 origin
 	// +kubebuilder:validation:Enum=virtual;path
 	S3Style string `json:"s3Style,omitempty"`
 }
 
 type CustomerSpec struct {
+	// Specifies the customer name. Only informational
 	Name string `json:"name,omitempty"`
-	Id   int    `json:"id,omitempty"`
+	// Specifies the customer Id. Only informational
+	Id int `json:"id,omitempty"`
 }
 
 type CertificateSpec struct {
+	// Specifies the Certificate Object Reference
 	CertificateRef string `json:"certificateRef,omitempty"`
-	SecretRef      string `json:"secretRef,omitempty"`
-	Crt            string `json:"crt,omitempty"`
-	Key            string `json:"key,omitempty"`
+	// Specifies the Secret Object Reference for the certificate
+	SecretRef string `json:"secretRef,omitempty"`
+	// Specifies the Certificate as an inline object
+	Crt string `json:"crt,omitempty"`
+	// Specifies the Key as an inline object
+	Key string `json:"key,omitempty"`
 }
 
 type SecureKeySpec struct {
-	Name      string      `json:"name,omitempty"`
-	Value     string      `json:"value,omitempty"`
+	// Specifies the name of the Secure Key for URL Signatures
+	Name string `json:"name,omitempty"`
+	// Specifies the value of the Secure Key for URL Signatures
+	// +kubebuilder:validation:MinLength=32
+	// +kubebuilder:validation:MaxLength=32
+	Value string `json:"value,omitempty"`
+	// Specifies the creation time of the Secure Key
 	CreatedAt metav1.Time `json:"createdAt"`
 }
 
 type CacheKeySpec struct {
+	// Specifies the list of Query parameters which alter the caching key. If empty, query parameters are not used in the cache key
+	// +kubebuilder:validation:UniqueItems=true
 	QueryParams []string `json:"queryParams,omitempty"`
-	Headers     []string `json:"headers,omitempty"`
+	// Specifies the list of Headers which alter the caching key. If empty, headers are not used in the cache key
+	// +kubebuilder:validation:UniqueItems=true
+	Headers []string `json:"headers,omitempty"`
 }
 
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
-	Name        string          `json:"name,omitempty"`
-	Domain      string          `json:"domain,omitempty"`
+	// Service Name. Use full domain name for the service
+	Name string `json:"name,omitempty"`
+	// Domain name. Ideally the same as the service name
+	Domain string `json:"domain,omitempty"`
+	// SSL Certificate for the service
 	Certificate CertificateSpec `json:"certificate"`
+	// Defines the Origin type for the service. s3 or static
 	// +kubebuilder:validation:Enum=s3;static
-	OriginType    string             `json:"originType,omitempty"`
+	OriginType string `json:"originType,omitempty"`
+	// Defines the specs of the origin if a static origin is used
 	StaticOrigins []StaticOriginSpec `json:"staticOrigins,omitempty"`
-	S3OriginSpec  []S3OriginSpec     `json:"s3OriginSpec,omitempty"`
-	SecureKeys    []SecureKeySpec    `json:"secureKeys,omitempty"`
-	Customer      CustomerSpec       `json:"customer"`
-	Cache         string             `json:"cache,omitempty"`
-	CacheKeySpec  CacheKeySpec       `json:"cacheKey"`
+	// Defines the specs of the origin if an S3 origin is used
+	S3OriginSpec []S3OriginSpec `json:"s3OriginSpec,omitempty"`
+	// Defines the secure keys for the service. Max 2 items for key rotation
+	// +kubebuilder:validation:MinItems=0
+	// +kubebuilder:validation:MaxItems=2
+	SecureKeys []SecureKeySpec `json:"secureKeys,omitempty"`
+	// Defines the customer details for the service
+	Customer CustomerSpec `json:"customer"`
+	// Specifies which cache to use for the service
+	Cache string `json:"cache,omitempty"`
+	// Specifies the cache key modifiers for the service
+	CacheKeySpec CacheKeySpec `json:"cacheKey"`
 }
 
 // ServiceStatus defines the observed state of Service.

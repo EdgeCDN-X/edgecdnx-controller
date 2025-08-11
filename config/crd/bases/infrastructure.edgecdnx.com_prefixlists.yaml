@@ -53,19 +53,22 @@ spec:
             description: PrefixListSpec defines the desired state of PrefixList.
             properties:
               destination:
-                description: Where to route the requests coming from this prefix list
+                description: Destination Location where this prefix list is routing
+                  to
                 type: string
               prefix:
-                description: Prefix definitions
+                description: Prefixes defined for this PrefixList
                 properties:
                   v4:
                     description: IPv4 Prefixes
                     items:
                       properties:
                         address:
+                          description: IPv6 Address
                           format: ipv4
                           type: string
                         size:
+                          description: Subnet size
                           maximum: 32
                           minimum: 0
                           type: integer
@@ -79,9 +82,11 @@ spec:
                     items:
                       properties:
                         address:
+                          description: IPv4 Address
                           format: ipv6
                           type: string
                         size:
+                          description: Subnet size
                           maximum: 128
                           minimum: 0
                           type: integer
@@ -114,8 +119,6 @@ spec:
                 - Requested
                 type: string
               status:
-                description: Describes the state of consolidation. The consolidated
-                  state is saved in status
                 enum:
                 - Healthy
                 - Progressing

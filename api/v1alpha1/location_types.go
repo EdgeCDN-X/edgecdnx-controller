@@ -21,32 +21,49 @@ import (
 )
 
 type GeoLookupAttributeValuesSpec struct {
-	Value  string `json:"value,omitempty"`
-	Weight int    `json:"weight,omitempty"`
+	// Value is the value of the attribute.
+	Value string `json:"value,omitempty"`
+	// Additional modifier Weight for the value.
+	Weight int `json:"weight,omitempty"`
 }
 
 type GeoLookupAttributeSpec struct {
-	Weight int                            `json:"weight,omitempty"`
+	// Weight of this attribute
+	Weight int `json:"weight,omitempty"`
+	// Attribute Values.
 	Values []GeoLookupAttributeValuesSpec `json:"values,omitempty"`
 }
 
 type GeoLookupSpec struct {
-	Weight     int                               `json:"weight,omitempty"`
+	// Weight of this location in case of load balancing between multiple locations.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=1000
+	Weight int `json:"weight,omitempty"`
+	// Attributes assigned for this location for GeoLookup.
 	Attributes map[string]GeoLookupAttributeSpec `json:"attributes,omitempty"`
 }
 
 type NodeSpec struct {
-	Name   string   `json:"name,omitempty"`
-	Ipv4   string   `json:"ipv4,omitempty"`
-	Ipv6   string   `json:"ipv6,omitempty"`
+	// Name is the name of the node.
+	Name string `json:"name,omitempty"`
+	// Ipv4 is the IPv4 address of the node.
+	Ipv4 string `json:"ipv4,omitempty"`
+	// Ipv6 is the IPv6 address of the node.
+	Ipv6 string `json:"ipv6,omitempty"`
+	// Caches is the list of caches that are associated with this node.
+	// +kubebuilder:validation:UniqueItems=true
 	Caches []string `json:"caches,omitempty"`
 }
 
 // LocationSpec defines the desired state of Location.
 type LocationSpec struct {
-	FallbackLocations []string      `json:"fallbackLocations,omitempty"`
-	Nodes             []NodeSpec    `json:"nodes,omitempty"`
-	GeoLookup         GeoLookupSpec `json:"geoLookup"`
+	// Specifies the list of locations that this location can fall back to.
+	// +kubebuilder:validation.UniqueItems=true
+	FallbackLocations []string `json:"fallbackLocations,omitempty"`
+	// Specifies the list of nodes that are part of this location.
+	Nodes []NodeSpec `json:"nodes,omitempty"`
+	// Specifies the geo lookup configuration for this location.
+	GeoLookup GeoLookupSpec `json:"geoLookup"`
 }
 
 // LocationStatus defines the observed state of Location.

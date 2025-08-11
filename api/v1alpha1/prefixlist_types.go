@@ -21,16 +21,20 @@ import (
 )
 
 type V4PrefixSpec struct {
+	// IPv6 Address
 	// +kubebuilder:validation:Format=ipv4
 	Address string `json:"address"`
+	// Subnet size
 	// +kubebuilder:validation:Maximum=32
 	// +kubebuilder:validation:Minimum=0
 	Size int `json:"size"`
 }
 
 type V6PrefixSpec struct {
+	// IPv4 Address
 	// +kubebuilder:validation:Format=ipv6
 	Address string `json:"address"`
+	// Subnet size
 	// +kubebuilder:validation:Maximum=128
 	// +kubebuilder:validation:Minimum=0
 	Size int `json:"size"`
@@ -48,19 +52,15 @@ type PrefixListSpec struct {
 	// Source is the source of the prefix list. Either static of Bgp
 	// +kubebuilder:validation:Enum=Static;Bgp;Controller
 	Source string `json:"source"`
-	// Prefix definitions
+	// Prefixes defined for this PrefixList
 	Prefix PrefixSpec `json:"prefix"`
-	// Where to route the requests coming from this prefix list
+	// Destination Location where this prefix list is routing to
 	// +kubebuilder:validation:Required
 	Destination string `json:"destination"`
 }
 
 // PrefixListStatus defines the observed state of PrefixList.
 type PrefixListStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Describes the state of consolidation. The consolidated state is saved in status
 	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
 	Status string `json:"status,omitempty"`
 	// +kubebuilder:validation:Enum=Consolidating;Consolidated;Requested

@@ -40,70 +40,105 @@ spec:
             description: ServiceSpec defines the desired state of Service.
             properties:
               cache:
+                description: Specifies which cache to use for the service
                 type: string
               cacheKey:
+                description: Specifies the cache key modifiers for the service
                 properties:
                   headers:
+                    description: Specifies the list of Headers which alter the caching
+                      key. If empty, headers are not used in the cache key
                     items:
                       type: string
                     type: array
+                    uniqueItems: true
                   queryParams:
+                    description: Specifies the list of Query parameters which alter
+                      the caching key. If empty, query parameters are not used in
+                      the cache key
                     items:
                       type: string
                     type: array
+                    uniqueItems: true
                 type: object
               certificate:
+                description: SSL Certificate for the service
                 properties:
                   certificateRef:
+                    description: Specifies the Certificate Object Reference
                     type: string
                   crt:
+                    description: Specifies the Certificate as an inline object
                     type: string
                   key:
+                    description: Specifies the Key as an inline object
                     type: string
                   secretRef:
+                    description: Specifies the Secret Object Reference for the certificate
                     type: string
                 type: object
               customer:
+                description: Defines the customer details for the service
                 properties:
                   id:
+                    description: Specifies the customer Id. Only informational
                     type: integer
                   name:
+                    description: Specifies the customer name. Only informational
                     type: string
                 type: object
               domain:
+                description: Domain name. Ideally the same as the service name
                 type: string
               name:
+                description: Service Name. Use full domain name for the service
                 type: string
               originType:
+                description: Defines the Origin type for the service. s3 or static
                 enum:
                 - s3
                 - static
                 type: string
               s3OriginSpec:
+                description: Defines the specs of the origin if an S3 origin is used
                 items:
                   properties:
                     awsSigsVersion:
+                      description: Specifies the S3 Bucket Signature version for the
+                        origin
                       enum:
                       - 2
                       - 4
                       type: integer
                     s3AccessKeyId:
+                      description: Specifies the Access Key ID for the private s3
+                        origin
                       type: string
                     s3BucketName:
-                      description: AWS Endpoints
+                      description: Specifies the S3 Bucket Name for the private s3
+                        origin
                       type: string
                     s3Region:
+                      description: Specifies the S3 Region for the private s3 origin
                       type: string
                     s3SecretKey:
+                      description: Specifies the Secret Access Key for the private
+                        s3 origin
                       type: string
                     s3Server:
-                      description: Custom S3 endpoitns
+                      description: Specifies the S3 Server for the private s3 origin
                       type: string
                     s3ServerPort:
+                      description: Specifies the S3 Server Port for the private s3
+                        origin
                       type: integer
                     s3ServerProto:
+                      description: Specifies the S3 Server Protocol for the private
+                        s3 origin
                       type: string
                     s3Style:
+                      description: Specifies the S3 Server Style for the private s3
+                        origin
                       enum:
                       - virtual
                       - path
@@ -117,32 +152,48 @@ spec:
                   type: object
                 type: array
               secureKeys:
+                description: Defines the secure keys for the service. Max 2 items
+                  for key rotation
                 items:
                   properties:
                     createdAt:
+                      description: Specifies the creation time of the Secure Key
                       format: date-time
                       type: string
                     name:
+                      description: Specifies the name of the Secure Key for URL Signatures
                       type: string
                     value:
+                      description: Specifies the value of the Secure Key for URL Signatures
+                      maxLength: 32
+                      minLength: 32
                       type: string
                   required:
                   - createdAt
                   type: object
+                maxItems: 2
+                minItems: 0
                 type: array
               staticOrigins:
+                description: Defines the specs of the origin if a static origin is
+                  used
                 items:
                   properties:
                     hostHeader:
+                      description: Specifies the Host Header to be used for the static
+                        origin
                       type: string
                     port:
+                      description: Specifies the port for the static origin
                       type: integer
                     scheme:
+                      description: Specifies the Scheme for the static origin
                       enum:
                       - Http
                       - Https
                       type: string
                     upstream:
+                      description: Specifies the Upsteram URL for the static origin
                       type: string
                   type: object
                 type: array

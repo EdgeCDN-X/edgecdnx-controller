@@ -40,42 +40,61 @@ spec:
             description: LocationSpec defines the desired state of Location.
             properties:
               fallbackLocations:
+                description: Specifies the list of locations that this location can
+                  fall back to.
                 items:
                   type: string
                 type: array
               geoLookup:
+                description: Specifies the geo lookup configuration for this location.
                 properties:
                   attributes:
                     additionalProperties:
                       properties:
                         values:
+                          description: Attribute Values.
                           items:
                             properties:
                               value:
+                                description: Value is the value of the attribute.
                                 type: string
                               weight:
+                                description: Additional modifier Weight for the value.
                                 type: integer
                             type: object
                           type: array
                         weight:
+                          description: Weight of this attribute
                           type: integer
                       type: object
+                    description: Attributes assigned for this location for GeoLookup.
                     type: object
                   weight:
+                    description: Weight of this location in case of load balancing
+                      between multiple locations.
+                    maximum: 1000
+                    minimum: 0
                     type: integer
                 type: object
               nodes:
+                description: Specifies the list of nodes that are part of this location.
                 items:
                   properties:
                     caches:
+                      description: Caches is the list of caches that are associated
+                        with this node.
                       items:
                         type: string
                       type: array
+                      uniqueItems: true
                     ipv4:
+                      description: Ipv4 is the IPv4 address of the node.
                       type: string
                     ipv6:
+                      description: Ipv6 is the IPv6 address of the node.
                       type: string
                     name:
+                      description: Name is the name of the node.
                       type: string
                   type: object
                 type: array
