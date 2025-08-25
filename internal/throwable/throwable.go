@@ -32,7 +32,7 @@ func (t ThrowerHelmValues) GetAppSetSpec(Options AppsetSpecOptions) (argoprojv1a
 		return argoprojv1alpha1.ApplicationSetSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
 	}
 
-	var generators []argoprojv1alpha1.ApplicationSetGenerator
+	generators := make([]argoprojv1alpha1.ApplicationSetGenerator, 0, len(Options.LabelMatch))
 	for g := range Options.LabelMatch {
 		generators = append(generators, argoprojv1alpha1.ApplicationSetGenerator{
 			Clusters: &argoprojv1alpha1.ClusterGenerator{

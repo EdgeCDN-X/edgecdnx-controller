@@ -27,12 +27,14 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -53,7 +55,16 @@ func TestControllers(t *testing.T) {
 	RunSpecs(t, "Controller Suite")
 }
 
+const (
+	ThrowerChartName                    = "resource-thrower"
+	ThrowerChartVersion                 = "0.1.0"
+	ThrowerChartRepository              = "https://edgecdn-x.github.io/helm-charts"
+	InfrastructureTargetNamespace       = "edgecdnx"
+	InfrastructureApplicationSetProject = "default"
+)
+
 var _ = BeforeSuite(func() {
+
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	ctx, cancel = context.WithCancel(context.TODO())
@@ -62,11 +73,14 @@ var _ = BeforeSuite(func() {
 	err = infrastructurev1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = argoprojv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	// +kubebuilder:scaffold:scheme
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases"), filepath.Join("..", "..", "config", "tests", "crds")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -83,6 +97,30 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&LocationReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		ThrowerOptions: ThrowerOptions{
+			ThrowerChartName:                    ThrowerChartName,
+			ThrowerChartVersion:                 ThrowerChartVersion,
+			ThrowerChartRepository:              ThrowerChartRepository,
+			InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
+			InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
+		},
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	go func() {
+		defer GinkgoRecover()
+		err = k8sManager.Start(ctx)
+		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+	}()
 })
 
 var _ = AfterSuite(func() {

@@ -118,7 +118,11 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 				Spec: spec,
 			}
 
-			controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
+			err := controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
+			if err != nil {
+				log.Error(err, "Failed to set controller reference on ApplicationSet")
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{}, r.Create(ctx, appset)
 		} else {
 			log.Error(err, "Failed to get ApplicationSet for PrefixList")

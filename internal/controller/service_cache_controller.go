@@ -43,6 +43,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const OriginTypeStatic = "static"
+
 // ServiceCacheReconciler reconciles a Service object
 type ServiceCacheReconciler struct {
 	client.Client
@@ -291,11 +293,11 @@ location /.edgecdnx/healthz {
 		}
 	}
 
-	if service.Spec.SecureKeys != nil && len(service.Spec.SecureKeys) > 0 {
+	if len(service.Spec.SecureKeys) > 0 {
 		marshable.Annotations["nginx.ingress.kubernetes.io/auth-url"] = r.SecureUrlsEndpoint
 	}
 
-	if service.Spec.OriginType == "static" {
+	if service.Spec.OriginType == OriginTypeStatic {
 		marshable.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = strings.ToUpper(service.Spec.StaticOrigins[0].Scheme)
 		marshable.Annotations["nginx.ingress.kubernetes.io/upstream-vhost"] = service.Spec.StaticOrigins[0].HostHeader
 		marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths = append(marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths, networkingv1.HTTPIngressPath{
@@ -407,6 +409,7 @@ func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
+// nolint: gocyclo, vet
 func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -437,7 +440,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				if service.Spec.OriginType == "static" {
+				if service.Spec.OriginType == OriginTypeStatic {
 					log.Info("ExternalName Service not found, creating it", "Service", extServiceName)
 
 					spec, annotations, hash, err := r.getServiceCache(service)
@@ -462,7 +465,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						Spec: spec,
 					}
 
-					controllerutil.SetControllerReference(service, extService, r.Scheme)
+					err = controllerutil.SetControllerReference(service, extService, r.Scheme)
+					if err != nil {
+						log.Error(err, "unable to set owner reference on Service", "Service", extServiceName)
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, r.Create(ctx, extService)
 				}
 			} else {
@@ -470,7 +477,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return ctrl.Result{Requeue: true}, err
 			}
 		} else {
-			if service.Spec.OriginType == "static" {
+			if service.Spec.OriginType == OriginTypeStatic {
 				spec, annotations, hash, err := r.getServiceCache(service)
 
 				if err != nil {
@@ -519,7 +526,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						Spec: spec,
 					}
 
-					controllerutil.SetControllerReference(service, deployment, r.Scheme)
+					err = controllerutil.SetControllerReference(service, deployment, r.Scheme)
+					if err != nil {
+						log.Error(err, "unable to set owner reference on S3Gateway Deployment", "Service", service.Name)
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, r.Create(ctx, deployment)
 				}
 			} else {
@@ -574,7 +585,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						},
 						Spec: spec,
 					}
-					controllerutil.SetControllerReference(service, s3Service, r.Scheme)
+					err = controllerutil.SetControllerReference(service, s3Service, r.Scheme)
+					if err != nil {
+						log.Error(err, "unable to set owner reference on S3 Service", "Service", service.Name)
+						return ctrl.Result{}, err
+					}
 					err = r.Create(ctx, s3Service)
 					if err != nil {
 						log.Error(err, "unable to create S3 Service for Service", "Service", service.Name)
@@ -626,7 +641,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				maps.Copy(objAnnotations, annotations)
 				nSecret.Annotations = objAnnotations
 
-				controllerutil.SetControllerReference(service, &nSecret, r.Scheme)
+				err = controllerutil.SetControllerReference(service, &nSecret, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on Secret for Service", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
 				err = r.Create(ctx, &nSecret)
 				if err != nil {
 					log.Error(err, "unable to create Secret for Service", "Service", service.Name)
@@ -682,7 +701,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					},
 					Spec: spec,
 				}
-				controllerutil.SetControllerReference(service, ingress, r.Scheme)
+				err = controllerutil.SetControllerReference(service, ingress, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on Ingress for Service", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
 				err = r.Create(ctx, ingress)
 				if err != nil {
 					log.Error(err, "unable to create Ingress for Service", "Service", service.Name)

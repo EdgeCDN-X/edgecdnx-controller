@@ -129,7 +129,11 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 					Spec: spec,
 				}
 
-				controllerutil.SetControllerReference(location, appset, r.Scheme)
+				err := controllerutil.SetControllerReference(location, appset, r.Scheme)
+				if err != nil {
+					log.Error(err, "Failed to set controller reference on ApplicationSet")
+					return ctrl.Result{}, err
+				}
 				return ctrl.Result{}, r.Create(ctx, appset)
 			} else {
 				log.Error(err, "Failed to get ApplicationSet for Location")

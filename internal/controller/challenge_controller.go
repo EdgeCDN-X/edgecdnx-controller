@@ -135,7 +135,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		log.Error(err, "Failed to marshal Challenge spec")
 		return ctrl.Result{}, err
 	}
-	md5Hash := md5.Sum([]byte(challengeSpec))
+	md5Hash := md5.Sum(challengeSpec)
 
 	if challenge.Status.Presented && challenge.Status.Processing {
 		pod := &corev1.Pod{
@@ -324,7 +324,11 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Spec: spec,
 			}
 
-			controllerutil.SetControllerReference(challenge, appset, r.Scheme)
+			err := controllerutil.SetControllerReference(challenge, appset, r.Scheme)
+			if err != nil {
+				log.Error(err, "Failed to set controller reference on ApplicationSet")
+				return ctrl.Result{}, err
+			}
 			return ctrl.Result{}, r.Create(ctx, appset)
 
 		} else {

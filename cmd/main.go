@@ -64,6 +64,12 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+const (
+	RoleController      = "controller"
+	RoleCacheController = "cache-controller"
+	RoleRouter          = "router"
+)
+
 // nolint:gocyclo
 func main() {
 	var metricsAddr string
@@ -112,9 +118,12 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	flag.StringVar(&role, "role", "controller", "The role of this instance. Can be 'controller', runs on control plane, 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
+	flag.StringVar(&role, "role", "controller",
+		"The role of this instance. Can be 'controller', runs on control plane,"+
+			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
 
-	flag.StringVar(&consulEndpoint, "consul-endpoint", "http://edgecdnx-consul-consul-server:8500", "Default Consul Endpoint")
+	flag.StringVar(&consulEndpoint, "consul-endpoint",
+		"http://edgecdnx-consul-consul-server:8500", "Default Consul Endpoint")
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -283,7 +292,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if role == "controller" {
+	if role == RoleController {
 		if err = (&controller.LocationReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -300,7 +309,7 @@ func main() {
 		}
 	}
 
-	if role == "controller" {
+	if role == RoleController {
 		if err = (&controller.ServiceReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -318,7 +327,7 @@ func main() {
 		}
 	}
 
-	if role == "controller" {
+	if role == RoleController {
 		if err = (&controller.PrefixListReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -335,7 +344,7 @@ func main() {
 		}
 	}
 
-	if role == "controller" {
+	if role == RoleController {
 		if err = (&controller.ChallengeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -352,7 +361,7 @@ func main() {
 		}
 	}
 
-	if role == "cache-controller" {
+	if role == RoleCacheController {
 		if err = (&controller.ServiceCacheReconciler{
 			Client:             mgr.GetClient(),
 			Scheme:             mgr.GetScheme(),
@@ -363,7 +372,7 @@ func main() {
 		}
 	}
 
-	if role == "router" {
+	if role == RoleRouter {
 		if err = (&controller.LocationRoutingReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),

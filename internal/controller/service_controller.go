@@ -140,7 +140,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 					Spec: certSpec,
 				}
 
-				controllerutil.SetControllerReference(service, cert, r.Scheme)
+				err = controllerutil.SetControllerReference(service, cert, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
 				return ctrl.Result{}, r.Create(ctx, cert)
 			}
 
@@ -242,7 +246,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 					Spec: spec,
 				}
 
-				controllerutil.SetControllerReference(service, appset, r.Scheme)
+				err := controllerutil.SetControllerReference(service, appset, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on ApplicationSet for Service", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
 				return ctrl.Result{}, r.Create(ctx, appset)
 			} else {
 				log.Error(err, "unable to fetch ApplicationSet for service")
