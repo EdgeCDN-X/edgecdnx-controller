@@ -45,6 +45,7 @@ spec:
                 items:
                   type: string
                 type: array
+                x-kubernetes-list-type: set
               geoLookup:
                 description: Specifies the geo lookup configuration for this location.
                 properties:
@@ -86,7 +87,7 @@ spec:
                       items:
                         type: string
                       type: array
-                      uniqueItems: true
+                      x-kubernetes-list-type: set
                     ipv4:
                       description: Ipv4 is the IPv4 address of the node.
                       type: string

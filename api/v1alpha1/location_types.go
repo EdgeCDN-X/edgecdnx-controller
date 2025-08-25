@@ -51,14 +51,14 @@ type NodeSpec struct {
 	// Ipv6 is the IPv6 address of the node.
 	Ipv6 string `json:"ipv6,omitempty"`
 	// Caches is the list of caches that are associated with this node.
-	// +kubebuilder:validation:UniqueItems=true
+	// +listType=set
 	Caches []string `json:"caches,omitempty"`
 }
 
 // LocationSpec defines the desired state of Location.
 type LocationSpec struct {
 	// Specifies the list of locations that this location can fall back to.
-	// +kubebuilder:validation.UniqueItems=true
+	// +listType=set
 	FallbackLocations []string `json:"fallbackLocations,omitempty"`
 	// Specifies the list of nodes that are part of this location.
 	Nodes []NodeSpec `json:"nodes,omitempty"`

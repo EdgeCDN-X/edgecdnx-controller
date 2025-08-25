@@ -88,10 +88,10 @@ type SecureKeySpec struct {
 
 type CacheKeySpec struct {
 	// Specifies the list of Query parameters which alter the caching key. If empty, query parameters are not used in the cache key
-	// +kubebuilder:validation:UniqueItems=true
+	// +listType=set
 	QueryParams []string `json:"queryParams,omitempty"`
 	// Specifies the list of Headers which alter the caching key. If empty, headers are not used in the cache key
-	// +kubebuilder:validation:UniqueItems=true
+	// +listType=set
 	Headers []string `json:"headers,omitempty"`
 }
 

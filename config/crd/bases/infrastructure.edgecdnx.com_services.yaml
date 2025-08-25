@@ -51,7 +51,7 @@ spec:
                     items:
                       type: string
                     type: array
-                    uniqueItems: true
+                    x-kubernetes-list-type: set
                   queryParams:
                     description: Specifies the list of Query parameters which alter
                       the caching key. If empty, query parameters are not used in
@@ -59,7 +59,7 @@ spec:
                     items:
                       type: string
                     type: array
-                    uniqueItems: true
+                    x-kubernetes-list-type: set
                 type: object
               certificate:
                 description: SSL Certificate for the service
