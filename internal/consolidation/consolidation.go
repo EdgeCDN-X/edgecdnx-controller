@@ -122,10 +122,14 @@ func ConsolidateV6(ctx context.Context, prefixes []infrastructurev1alpha1.V6Pref
 			}
 		}
 	}
-
 	keepPrefixes := make([]infrastructurev1alpha1.V6PrefixSpec, 0)
 	for _, prefix := range prefixes {
-		_, ok := toBeDeleted[fmt.Sprintf("%s/%d", prefix.Address, prefix.Size)]
+		_, s, err := net.ParseCIDR(prefix.Address + "/" + fmt.Sprint(prefix.Size))
+		if err != nil {
+			log.Error(err, "Failed to Parse CIDR", "subnet", prefix.Address, "prefixlen", prefix.Size)
+			continue
+		}
+		_, ok := toBeDeleted[s.String()]
 		if !ok {
 			keepPrefixes = append(keepPrefixes, prefix)
 		}
@@ -258,7 +262,12 @@ func ConsolidateV4(ctx context.Context, prefixes []infrastructurev1alpha1.V4Pref
 
 	keepPrefixes := make([]infrastructurev1alpha1.V4PrefixSpec, 0)
 	for _, prefix := range prefixes {
-		_, ok := toBeDeleted[fmt.Sprintf("%s/%d", prefix.Address, prefix.Size)]
+		_, s, err := net.ParseCIDR(prefix.Address + "/" + fmt.Sprint(prefix.Size))
+		if err != nil {
+			log.Error(err, "Failed to Parse CIDR", "subnet", prefix.Address, "prefixlen", prefix.Size)
+			continue
+		}
+		_, ok := toBeDeleted[s.String()]
 		if !ok {
 			keepPrefixes = append(keepPrefixes, prefix)
 		}
