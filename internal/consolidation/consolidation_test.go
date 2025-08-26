@@ -25,8 +25,8 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV4 = append(PrefixesV4, infrastructurev1alpha1.V4PrefixSpec{Address: "192.168.2.0", Size: 24})
 		consolidated, err := ConsolidateV4(context.TODO(), PrefixesV4)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 	})
 
 	It("ConsolidateV6 - Non Overlapping", func() {
@@ -34,17 +34,18 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV6 = append(PrefixesV6, infrastructurev1alpha1.V6PrefixSpec{Address: "2001:0002::", Size: 32})
 		consolidated, err := ConsolidateV6(context.TODO(), PrefixesV6)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 	})
 
 	It("ConsolidateV4 - Prefixes joined", func() {
 		PrefixesV4 = append(PrefixesV4, infrastructurev1alpha1.V4PrefixSpec{Address: "192.168.1.0", Size: 24})
 		consolidated, err := ConsolidateV4(context.TODO(), PrefixesV4)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V4PrefixSpec) bool {
+			// nolint: goconst
 			return p.Address == "192.168.0.0" && p.Size == 23
 		})).To(BeTrue())
 	})
@@ -53,9 +54,10 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV6 = append(PrefixesV6, infrastructurev1alpha1.V6PrefixSpec{Address: "2001:0001::", Size: 32})
 		consolidated, err := ConsolidateV6(context.TODO(), PrefixesV6)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V6PrefixSpec) bool {
+			// nolint: goconst
 			return p.Address == "2001::" && p.Size == 31
 		})).To(BeTrue())
 	})
@@ -64,8 +66,8 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV4 = append(PrefixesV4, infrastructurev1alpha1.V4PrefixSpec{Address: "192.168.0.0", Size: 16})
 		consolidated, err := ConsolidateV4(context.TODO(), PrefixesV4)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(1))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V4PrefixSpec) bool {
 			return p.Address == "192.168.0.0" && p.Size == 16
 		})).To(BeTrue())
@@ -75,8 +77,8 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV6 = append(PrefixesV6, infrastructurev1alpha1.V6PrefixSpec{Address: "2001::", Size: 24})
 		consolidated, err := ConsolidateV6(context.TODO(), PrefixesV6)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(1))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V6PrefixSpec) bool {
 			return p.Address == "2001::" && p.Size == 24
 		})).To(BeTrue())
@@ -86,8 +88,8 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV4 = append(PrefixesV4, infrastructurev1alpha1.V4PrefixSpec{Address: "192.168.0.0", Size: 8})
 		consolidated, err := ConsolidateV4(context.TODO(), PrefixesV4)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(1))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V4PrefixSpec) bool {
 			return p.Address == "192.168.0.0" && p.Size == 8
 		})).To(BeTrue())
@@ -97,8 +99,8 @@ var _ = Describe("Consolidation", func() {
 		PrefixesV6 = append(PrefixesV6, infrastructurev1alpha1.V6PrefixSpec{Address: "2001::", Size: 16})
 		consolidated, err := ConsolidateV6(context.TODO(), PrefixesV6)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(1))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V6PrefixSpec) bool {
 			return p.Address == "2001::" && p.Size == 16
 		})).To(BeTrue())
@@ -112,8 +114,8 @@ var _ = Describe("Consolidation", func() {
 
 		consolidated, err := ConsolidateV4(context.TODO(), PrefixesV4)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V4PrefixSpec) bool {
 			return p.Address == "192.168.0.0" && p.Size == 8
 		})).To(BeTrue())
@@ -130,8 +132,8 @@ var _ = Describe("Consolidation", func() {
 
 		consolidated, err := ConsolidateV6(context.TODO(), PrefixesV6)
 
-		Expect(err).To(BeNil())
-		Expect(len(consolidated)).To(Equal(2))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(consolidated).To(HaveLen(2))
 		Expect(slices.ContainsFunc(consolidated, func(p infrastructurev1alpha1.V6PrefixSpec) bool {
 			return p.Address == "2001::" && p.Size == 16
 		})).To(BeTrue())
