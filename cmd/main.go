@@ -292,6 +292,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Test - Done
 	if role == RoleController {
 		if err = (&controller.LocationReconciler{
 			Client: mgr.GetClient(),
@@ -309,6 +310,7 @@ func main() {
 		}
 	}
 
+	// Tests - In Progress
 	if role == RoleController {
 		if err = (&controller.ServiceReconciler{
 			Client: mgr.GetClient(),

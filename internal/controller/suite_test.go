@@ -35,6 +35,7 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -61,6 +62,7 @@ const (
 	ThrowerChartRepository              = "https://edgecdn-x.github.io/helm-charts"
 	InfrastructureTargetNamespace       = "edgecdnx"
 	InfrastructureApplicationSetProject = "default"
+	ClusterIssuerName                   = "cluster-issuer"
 )
 
 var _ = BeforeSuite(func() {
@@ -74,6 +76,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = argoprojv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = certmanagerv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
@@ -103,18 +108,34 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&LocationReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-		ThrowerOptions: ThrowerOptions{
-			ThrowerChartName:                    ThrowerChartName,
-			ThrowerChartVersion:                 ThrowerChartVersion,
-			ThrowerChartRepository:              ThrowerChartRepository,
-			InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
-			InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
-		},
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
+	if os.Getenv("ROLE") == "controller" {
+		err = (&LocationReconciler{
+			Client: k8sManager.GetClient(),
+			Scheme: k8sManager.GetScheme(),
+			ThrowerOptions: ThrowerOptions{
+				ThrowerChartName:                    ThrowerChartName,
+				ThrowerChartVersion:                 ThrowerChartVersion,
+				ThrowerChartRepository:              ThrowerChartRepository,
+				InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = (&ServiceReconciler{
+			Client: k8sManager.GetClient(),
+			Scheme: k8sManager.GetScheme(),
+			ThrowerOptions: ThrowerOptions{
+				ThrowerChartName:                    ThrowerChartName,
+				ThrowerChartVersion:                 ThrowerChartVersion,
+				ThrowerChartRepository:              ThrowerChartRepository,
+				InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
+				InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
+			},
+			ClusterIssuerName: ClusterIssuerName,
+		}).SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	go func() {
 		defer GinkgoRecover()
