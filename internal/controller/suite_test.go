@@ -63,6 +63,7 @@ const (
 	InfrastructureTargetNamespace       = "edgecdnx"
 	InfrastructureApplicationSetProject = "default"
 	ClusterIssuerName                   = "cluster-issuer"
+	ControllerRole                      = "controller"
 )
 
 var _ = BeforeSuite(func() {
@@ -108,7 +109,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	if os.Getenv("ROLE") == "controller" {
+	if os.Getenv("ROLE") == ControllerRole {
 		err = (&LocationReconciler{
 			Client: k8sManager.GetClient(),
 			Scheme: k8sManager.GetScheme(),

@@ -35,10 +35,11 @@ import (
 
 var _ = Describe("Location Reconciler", func() {
 	const (
-		LocationName = "test-location"
-		Namespace    = "default"
-		timeout      = time.Second * 30
-		interval     = time.Millisecond * 500
+		LocationName   = "test-location"
+		Namespace      = "default"
+		timeout        = time.Second * 30
+		interval       = time.Millisecond * 500
+		ControllerRole = "controller"
 	)
 
 	locationLookupKey := types.NamespacedName{Name: LocationName, Namespace: Namespace}
@@ -74,7 +75,7 @@ var _ = Describe("Location Reconciler", func() {
 
 	BeforeEach(func() {
 		role := os.Getenv("ROLE")
-		if role != "controller" {
+		if role != ControllerRole {
 			Skip("Skipping Location Reconciler tests because ROLE is not set to 'controller'")
 		}
 
@@ -98,7 +99,7 @@ var _ = Describe("Location Reconciler", func() {
 	AfterEach(func() {
 
 		role := os.Getenv("ROLE")
-		if role != "controller" {
+		if role != ControllerRole {
 			Skip("Skipping Location Reconciler tests because ROLE is not set to 'controller'")
 		}
 

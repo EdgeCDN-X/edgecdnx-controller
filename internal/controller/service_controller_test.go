@@ -40,6 +40,7 @@ var _ = Describe("Service Controller", func() {
 			Namespace         = "default"
 			timeout           = time.Second * 10
 			interval          = time.Millisecond * 500
+			ControllerRole    = "controller"
 		)
 
 		serviceLookupKey := types.NamespacedName{Name: StaticServiceName, Namespace: Namespace}
@@ -65,7 +66,7 @@ var _ = Describe("Service Controller", func() {
 
 		BeforeEach(func() {
 			role := os.Getenv("ROLE")
-			if role != "controller" {
+			if role != ControllerRole {
 				Skip("Skipping test because ROLE is not 'controller'")
 			}
 
@@ -88,7 +89,7 @@ var _ = Describe("Service Controller", func() {
 
 		AfterEach(func() {
 			role := os.Getenv("ROLE")
-			if role != "controller" {
+			if role != ControllerRole {
 				Skip("Skipping test because ROLE is not 'controller'")
 			}
 
@@ -145,7 +146,7 @@ var _ = Describe("Service Controller", func() {
 				Expect(createdService.Spec.Name).To(Equal(StaticServiceName))
 				Expect(createdService.Spec.Domain).To(Equal(StaticServiceName))
 				Expect(createdService.Spec.OriginType).To(Equal("static"))
-				Expect(len(createdService.Spec.StaticOrigins)).To(Equal(1))
+				Expect(createdService.Spec.StaticOrigins).To(HaveLen(1))
 				Expect(createdService.Spec.StaticOrigins[0].Upstream).To(Equal("randomupstream.com"))
 				Expect(createdService.Spec.StaticOrigins[0].Port).To(Equal(443))
 				Expect(createdService.Spec.StaticOrigins[0].HostHeader).To(Equal("randomupstream.com"))
