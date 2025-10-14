@@ -187,7 +187,7 @@ var _ = Describe("Location Reconciler", func() {
 					AppsetNamespace: location.Namespace,
 					Project:         InfrastructureApplicationSetProject,
 					TargetNamespace: InfrastructureTargetNamespace,
-					Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`, location.Name),
+					Name:            fmt.Sprintf(`{{ name }}-location-%s`, location.Name),
 					// Roll out for routing
 					LabelMatch: [][]metav1.LabelSelectorRequirement{
 						{
@@ -300,7 +300,7 @@ var _ = Describe("Location Reconciler", func() {
 					AppsetNamespace: location.Namespace,
 					Project:         InfrastructureApplicationSetProject,
 					TargetNamespace: InfrastructureTargetNamespace,
-					Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`, location.Name),
+					Name:            fmt.Sprintf(`{{ name }}-location-%s`, location.Name),
 					// Roll out for routing
 					LabelMatch: [][]metav1.LabelSelectorRequirement{
 						{
