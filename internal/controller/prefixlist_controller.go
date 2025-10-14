@@ -78,7 +78,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			AppsetNamespace: prefixList.Namespace,
 			Project:         r.InfrastructureApplicationSetProject,
 			TargetNamespace: r.InfrastructureTargetNamespace,
-			Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-prefixes-%s`, prefixList.Name),
+			Name:            fmt.Sprintf(`{{ name }}-prefixes-%s`, prefixList.Name),
 			// Roll out for both routing and caching
 			LabelMatch: [][]metav1.LabelSelectorRequirement{
 				{

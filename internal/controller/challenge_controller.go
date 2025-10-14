@@ -277,7 +277,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				ChartVersion:    r.ThrowerChartVersion,
 				Project:         r.InfrastructureApplicationSetProject,
 				TargetNamespace: r.InfrastructureTargetNamespace,
-				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-service-%s`, service.Name),
+				Name:            fmt.Sprintf(`{{ name }}-service-%s`, service.Name),
 				// Roll out for both routing and caching
 				LabelMatch: [][]metav1.LabelSelectorRequirement{
 					{
