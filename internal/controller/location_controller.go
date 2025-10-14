@@ -90,7 +90,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				AppsetNamespace: location.Namespace,
 				Project:         r.InfrastructureApplicationSetProject,
 				TargetNamespace: r.InfrastructureTargetNamespace,
-				Name:            fmt.Sprintf(`{{ metadata.labels.edgecdnx.com/location }}-location-%s`, location.Name),
+				Name:            fmt.Sprintf(`{{ .name }}-location-%s`, location.Name),
 				// Roll out for routing
 				LabelMatch: [][]metav1.LabelSelectorRequirement{
 					{
