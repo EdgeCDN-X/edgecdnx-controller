@@ -105,7 +105,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		resource := &infrastructurev1alpha1.Service{
+		serviceRawResource := &infrastructurev1alpha1.Service{
 			TypeMeta: service.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      service.Name,
@@ -143,19 +143,30 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				err = controllerutil.SetControllerReference(service, cert, r.Scheme)
 				if err != nil {
 					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
-					return ctrl.Result{}, err
+					return ctrl.Result{Requeue: true}, err
 				}
 				return ctrl.Result{}, r.Create(ctx, cert)
 			}
 
 			log.Error(err, "unable to fetch Certificate for Service")
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, err
 		} else {
 			if !cert.DeletionTimestamp.IsZero() {
 				log.Info("Certificate for Service is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
+			// Update Controller Reference if missing (should not happen tho)
+			if !controllerutil.HasControllerReference(cert) {
+				err := controllerutil.SetControllerReference(service, cert, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
+					return ctrl.Result{Requeue: true}, err
+				}
+				return ctrl.Result{}, r.Update(ctx, cert)
+			}
+
+			// Update Certificate if spec changed
 			currCertHash, ok := cert.ObjectMeta.Annotations[ValuesHashAnnotation]
 			if !ok || currCertHash != hash {
 				log.Info("Updating Certificate for Service", "name", service.Name)
@@ -180,7 +191,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				}
 
 				// Pass down the certificate to the resource
-				resource.Spec.Certificate = infrastructurev1alpha1.CertificateSpec{
+				serviceRawResource.Spec.Certificate = infrastructurev1alpha1.CertificateSpec{
 					Key: base64.StdEncoding.EncodeToString(secret.Data["tls.key"]),
 					Crt: base64.StdEncoding.EncodeToString(secret.Data["tls.crt"]),
 				}
@@ -189,7 +200,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// ################ START - Application Spec section
 		serviceHelmValues := throwable.ThrowerHelmValues{
-			Resources: []any{resource},
+			Resources: []any{serviceRawResource},
 		}
 
 		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(

@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"maps"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	throwable "github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
@@ -65,96 +64,79 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if location.Status != (infrastructurev1alpha1.LocationStatus{}) {
-		// If status is healthy, check if location application set is rolled out
-		appset := &argoprojv1alpha1.ApplicationSet{}
 
-		// Do not sync status down the line. Not necessary
+		// Strip off resource from Namespace. Applicationset Will take care of it.
 		resource := &infrastructurev1alpha1.Location{
 			TypeMeta: location.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      location.Name,
-				Namespace: r.InfrastructureTargetNamespace,
+				Name: location.Name,
 			},
 			Spec: location.Spec,
 		}
 
-		locationHelmValues := throwable.ThrowerHelmValues{
+		locationHelmValues := struct {
+			Resources []any `json:"resources"`
+		}{
 			Resources: []any{resource},
 		}
 
-		spec, annotations, hash, err := locationHelmValues.GetAppSetSpec(
-			throwable.AppsetSpecOptions{
-				ChartRepository: r.ThrowerChartRepository,
-				Chart:           r.ThrowerChartName,
-				ChartVersion:    r.ThrowerChartVersion,
-				AppsetNamespace: location.Namespace,
-				Project:         r.InfrastructureApplicationSetProject,
-				TargetNamespace: r.InfrastructureTargetNamespace,
-				Name:            fmt.Sprintf(`{{ name }}-location-%s`, location.Name),
-				// Roll out for routing
-				LabelMatch: [][]metav1.LabelSelectorRequirement{
-					{
-						{
-							Key:      "edgecdnx.com/routing",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
+		appsetBuilder := builder.ThrowableAppsetBuilder{}
+		appsetBuilder.SetHelmChartParams(builder.ChartParams{
+			ChartRepository: r.ThrowerChartRepository,
+			ChartName:       r.ThrowerChartName,
+			ChartVersion:    r.ThrowerChartVersion,
+			ReleaseName:     `location-{{ name }}`,
+		})
+		appsetBuilder.SetHelmValues(locationHelmValues)
+		appsetBuilder.SetTargetMeta(fmt.Sprintf(`location-%s-at-{{ name }}`, location.Name), location.Namespace, r.InfrastructureTargetNamespace)
+		appsetBuilder.SetProject(r.InfrastructureApplicationSetProject)
+		appsetBuilder.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+			{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
 				},
 			},
-		)
+		})
+
+		desiredAppset, hash, err := appsetBuilder.Build(location.Name, location.Namespace)
 
 		if err != nil {
-			log.Error(err, "Failed to get ApplicationSet spec for Location")
+			log.Error(err, "Failed to get ApplicationSet for Location")
 			return ctrl.Result{}, err
 		}
 
-		err = r.Get(ctx, types.NamespacedName{Namespace: location.Namespace, Name: location.Name}, appset)
+		currAppset := &argoprojv1alpha1.ApplicationSet{}
+		err = r.Get(ctx, types.NamespacedName{Namespace: location.Namespace, Name: location.Name}, currAppset)
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Info("Creating ApplicationSet for Location", "name", location.Name)
+				log.Info("Creating ApplicationSet for Location", "hash", hash)
 
-				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
-				}
-
-				maps.Copy(objAnnotations, annotations)
-				appset = &argoprojv1alpha1.ApplicationSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        location.Name,
-						Namespace:   location.Namespace,
-						Annotations: objAnnotations,
-					},
-					Spec: spec,
-				}
-
-				err := controllerutil.SetControllerReference(location, appset, r.Scheme)
+				err := controllerutil.SetControllerReference(location, &desiredAppset, r.Scheme)
 				if err != nil {
 					log.Error(err, "Failed to set controller reference on ApplicationSet")
 					return ctrl.Result{}, err
 				}
-				return ctrl.Result{}, r.Create(ctx, appset)
+				return ctrl.Result{}, r.Create(ctx, &desiredAppset)
 			} else {
 				log.Error(err, "Failed to get ApplicationSet for Location")
 				return ctrl.Result{}, err
 			}
 		} else {
-
-			if !appset.DeletionTimestamp.IsZero() {
+			if !currAppset.DeletionTimestamp.IsZero() {
 				log.Info("ApplicationSet for Location is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
-				log.Info("Updating ApplicationSet for Service", "name", location.Name)
-				appset.Spec = spec
-				maps.Copy(appset.ObjectMeta.Annotations, annotations)
-				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
-				return ctrl.Result{}, r.Update(ctx, appset)
+				log.Info("Updating ApplicationSet for Location", "old-hash", currAppsetHash, "new-hash", hash)
+				currAppset.Spec = desiredAppset.Spec
+				currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+				return ctrl.Result{}, r.Update(ctx, currAppset)
 			}
-
 		}
 
 		if location.Status.Status != HealthStatusHealthy {
