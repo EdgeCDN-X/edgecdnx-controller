@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -37,7 +36,6 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -109,8 +107,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		serviceRawResource := &infrastructurev1alpha1.Service{
 			TypeMeta: service.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      service.Name,
-				Namespace: r.TargetNamespace,
+				Name: service.Name,
 			},
 			Spec: service.Spec,
 		}
@@ -200,87 +197,54 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		// ################ START - Application Spec section
-		serviceHelmValues := throwable.ThrowerHelmValues{
-			Resources: []any{serviceRawResource},
-		}
-
-		spec, annotations, hash, err := serviceHelmValues.GetAppSetSpec(
-			throwable.AppsetSpecOptions{
-				ChartRepository: r.ThrowerChartRepository,
-				Chart:           r.ThrowerChartName,
-				ChartVersion:    r.ThrowerChartVersion,
-				Project:         r.ApplicationSetProject,
-				TargetNamespace: r.TargetNamespace,
-				Name:            fmt.Sprintf(`{{ name }}-service-%s`, service.Name),
-				// Roll out for both routing and caching
-				LabelMatch: [][]metav1.LabelSelectorRequirement{
-					{
-						{
-							Key:      "edgecdnx.com/routing",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
-					{
-						{
-							Key:      "edgecdnx.com/caching",
-							Operator: metav1.LabelSelectorOpIn,
-							Values:   []string{"true", "yes"},
-						},
-					},
-				},
-			},
-		)
-
+		appsetBuilder, err := builder.AppsetBuilderFactory("Service", service.Name, service.Namespace, r.ThrowerOptions)
 		if err != nil {
-			log.Error(err, "Failed to get ApplicationSet spec for Service")
+			log.Error(err, "Failed to create ApplicationSet builder for Service")
 			return ctrl.Result{}, err
 		}
 
-		appset := &argoprojv1alpha1.ApplicationSet{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, appset)
+		serviceHelmValues := struct {
+			Resources []any `json:"resources"`
+		}{
+			Resources: []any{serviceRawResource},
+		}
+		appsetBuilder.SetHelmValues(serviceHelmValues)
+
+		desiredAppset, hash, err := appsetBuilder.Build()
+		if err != nil {
+			log.Error(err, "Failed to get ApplicationSet for Service")
+			return ctrl.Result{}, err
+		}
+
+		currAppset := &argoprojv1alpha1.ApplicationSet{}
+		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, currAppset)
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Info("Creating ApplicationSet for Service", "name", service.Name)
 
-				objAnnotations := map[string]string{
-					builder.ValuesHashAnnotation: hash,
-				}
-
-				maps.Copy(objAnnotations, annotations)
-				appset = &argoprojv1alpha1.ApplicationSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        service.Name,
-						Namespace:   service.Namespace,
-						Annotations: objAnnotations,
-					},
-					Spec: spec,
-				}
-
-				err := controllerutil.SetControllerReference(service, appset, r.Scheme)
+				err := controllerutil.SetControllerReference(service, &desiredAppset, r.Scheme)
 				if err != nil {
 					log.Error(err, "unable to set owner reference on ApplicationSet for Service", "Service", service.Name)
 					return ctrl.Result{}, err
 				}
-				return ctrl.Result{}, r.Create(ctx, appset)
+				return ctrl.Result{}, r.Create(ctx, &desiredAppset)
 			} else {
 				log.Error(err, "unable to fetch ApplicationSet for service")
 				return ctrl.Result{}, err
 			}
 		} else {
-			if !appset.DeletionTimestamp.IsZero() {
+			if !currAppset.DeletionTimestamp.IsZero() {
 				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Service", "name", service.Name)
-				appset.Spec = spec
-				maps.Copy(appset.ObjectMeta.Annotations, annotations)
-				appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
-				return ctrl.Result{}, r.Update(ctx, appset)
+				currAppset.Spec = desiredAppset.Spec
+				currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+				return ctrl.Result{}, r.Update(ctx, currAppset)
 			}
 		}
 

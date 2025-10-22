@@ -36,7 +36,6 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/consolidation"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 )
 
@@ -63,7 +62,9 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		Spec: prefixList.Spec,
 	}
 
-	prefixesHelmValues := throwable.ThrowerHelmValues{
+	prefixesHelmValues := struct {
+		Resources []any `json:"resources"`
+	}{
 		Resources: []any{resource},
 	}
 
