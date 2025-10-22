@@ -137,6 +137,19 @@ var _ = BeforeSuite(func() {
 			ClusterIssuerName: ClusterIssuerName,
 		}).SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
+
+		err = (&PrefixListReconciler{
+			Client: k8sManager.GetClient(),
+			Scheme: k8sManager.GetScheme(),
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       ThrowerChartName,
+				ThrowerChartVersion:    ThrowerChartVersion,
+				ThrowerChartRepository: ThrowerChartRepository,
+				TargetNamespace:        InfrastructureTargetNamespace,
+				ApplicationSetProject:  InfrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	go func() {
