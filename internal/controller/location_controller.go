@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,17 +28,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 )
 
 // LocationReconciler reconciles a Location object
 type LocationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	ThrowerOptions
+	Scheme         *runtime.Scheme
+	ThrowerOptions builder.ThrowerOptions
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations,verbs=get;list;watch;create;update;patch;delete
@@ -64,7 +62,6 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if location.Status != (infrastructurev1alpha1.LocationStatus{}) {
-
 		// Strip off resource from Namespace. Applicationset Will take care of it.
 		resource := &infrastructurev1alpha1.Location{
 			TypeMeta: location.TypeMeta,
@@ -80,27 +77,13 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			Resources: []any{resource},
 		}
 
-		appsetBuilder := builder.ThrowableAppsetBuilder{}
-		appsetBuilder.SetHelmChartParams(builder.ChartParams{
-			ChartRepository: r.ThrowerChartRepository,
-			ChartName:       r.ThrowerChartName,
-			ChartVersion:    r.ThrowerChartVersion,
-			ReleaseName:     `location-{{ name }}`,
-		})
+		appsetBuilder, err := builder.AppsetBuilderFactory("Location", location.Name, location.Namespace, r.ThrowerOptions)
+		if err != nil {
+			log.Error(err, "Failed to create ApplicationSet builder for Location")
+			return ctrl.Result{}, err
+		}
 		appsetBuilder.SetHelmValues(locationHelmValues)
-		appsetBuilder.SetTargetMeta(fmt.Sprintf(`location-%s-at-{{ name }}`, location.Name), location.Namespace, r.InfrastructureTargetNamespace)
-		appsetBuilder.SetProject(r.InfrastructureApplicationSetProject)
-		appsetBuilder.SetLabelMatch([][]metav1.LabelSelectorRequirement{
-			{
-				{
-					Key:      "edgecdnx.com/routing",
-					Operator: metav1.LabelSelectorOpIn,
-					Values:   []string{"true", "yes"},
-				},
-			},
-		})
-
-		desiredAppset, hash, err := appsetBuilder.Build(location.Name, location.Namespace)
+		desiredAppset, hash, err := appsetBuilder.Build()
 
 		if err != nil {
 			log.Error(err, "Failed to get ApplicationSet for Location")
@@ -130,7 +113,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Location", "old-hash", currAppsetHash, "new-hash", hash)
 				currAppset.Spec = desiredAppset.Spec

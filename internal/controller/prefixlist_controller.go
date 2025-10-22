@@ -29,10 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
+	sigsbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/consolidation"
@@ -44,7 +46,7 @@ import (
 type PrefixListReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	ThrowerOptions
+	builder.ThrowerOptions
 }
 
 const ConsoliadtionStatusConsolidated = "Consolidated"
@@ -61,7 +63,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		TypeMeta: prefixList.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      prefixList.Name,
-			Namespace: r.InfrastructureTargetNamespace,
+			Namespace: r.ThrowerOptions.TargetNamespace,
 		},
 		Spec: prefixList.Spec,
 	}
@@ -76,8 +78,8 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			Chart:           r.ThrowerChartName,
 			ChartVersion:    r.ThrowerChartVersion,
 			AppsetNamespace: prefixList.Namespace,
-			Project:         r.InfrastructureApplicationSetProject,
-			TargetNamespace: r.InfrastructureTargetNamespace,
+			Project:         r.ApplicationSetProject,
+			TargetNamespace: r.TargetNamespace,
 			Name:            fmt.Sprintf(`{{ name }}-prefixes-%s`, prefixList.Name),
 			// Roll out for both routing and caching
 			LabelMatch: [][]metav1.LabelSelectorRequirement{
@@ -105,7 +107,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			log.Info("Creating ApplicationSet for Service", "name", prefixList.Name)
 
 			objAnnotations := map[string]string{
-				ValuesHashAnnotation: hash,
+				builder.ValuesHashAnnotation: hash,
 			}
 
 			maps.Copy(objAnnotations, annotations)
@@ -134,12 +136,12 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			return ctrl.Result{}, nil
 		}
 
-		currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+		currAppsetHash, ok := appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 		if !ok || currAppsetHash != hash {
 			log.Info("Updating ApplicationSet for Prefixlist", "name", prefixList.Name)
 			appset.Spec = spec
 			maps.Copy(appset.ObjectMeta.Annotations, annotations)
-			appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+			appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
 			return ctrl.Result{}, r.Update(ctx, appset)
 		}
 	}
@@ -174,7 +176,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 							Name:      generatedName,
 							Namespace: req.Namespace,
 							Annotations: map[string]string{
-								ValuesHashAnnotation: "",
+								builder.ValuesHashAnnotation: "",
 							},
 						},
 						Spec: infrastructurev1alpha1.PrefixListSpec{
@@ -266,13 +268,13 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 				}
 				newmd5Hash := md5.Sum(prefixByteA)
 
-				curHash, ok := generatedPrefixList.ObjectMeta.Annotations[ValuesHashAnnotation]
+				curHash, ok := generatedPrefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 				if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
 					log.Info("Generated PrefixList already exists for destination with the correct config (md5-hash).")
 					return ctrl.Result{}, nil
 				}
 
-				generatedPrefixList.ObjectMeta.Annotations[ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
+				generatedPrefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
 				generatedPrefixList.Spec.Prefix = newPrefix
 
 				return ctrl.Result{}, r.Update(ctx, generatedPrefixList)
@@ -299,7 +301,7 @@ func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastruc
 	}
 	newmd5Hash := md5.Sum(prefixByteA)
 
-	curHash, ok := prefixList.ObjectMeta.Annotations[ValuesHashAnnotation]
+	curHash, ok := prefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 
 	if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
 
@@ -356,6 +358,6 @@ func (r *PrefixListReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.PrefixList{}).
 		Owns(&argoprojv1alpha1.ApplicationSet{}).
-		Owns(&infrastructurev1alpha1.PrefixList{}, builder.MatchEveryOwner).
+		Owns(&infrastructurev1alpha1.PrefixList{}, sigsbuilder.MatchEveryOwner).
 		Complete(r)
 }

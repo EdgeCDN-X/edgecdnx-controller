@@ -37,6 +37,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	networkingv1 "k8s.io/api/networking/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -450,7 +451,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					}
 
 					objAnnotations := map[string]string{
-						ValuesHashAnnotation: hash,
+						builder.ValuesHashAnnotation: hash,
 					}
 
 					maps.Copy(objAnnotations, annotations)
@@ -484,11 +485,11 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					return ctrl.Result{Requeue: true}, err
 				}
 
-				curHash, ok := extService.Annotations[ValuesHashAnnotation]
+				curHash, ok := extService.Annotations[builder.ValuesHashAnnotation]
 				if !ok || curHash != hash {
 					extService.Spec = spec
 					extService.Annotations = annotations
-					extService.Annotations[ValuesHashAnnotation] = hash
+					extService.Annotations[builder.ValuesHashAnnotation] = hash
 					return ctrl.Result{}, r.Update(ctx, extService)
 				}
 			} else {
@@ -512,7 +513,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					}
 
 					objAnnotations := map[string]string{
-						ValuesHashAnnotation: hash,
+						builder.ValuesHashAnnotation: hash,
 					}
 
 					maps.Copy(objAnnotations, annotations)
@@ -545,12 +546,12 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					return ctrl.Result{}, err
 				}
 
-				curHash, ok := deployment.Annotations[ValuesHashAnnotation]
+				curHash, ok := deployment.Annotations[builder.ValuesHashAnnotation]
 				if !ok || curHash != hash {
 					log.Info("Updating S3Gateway Deployment for Service", "Service", service.Name)
 					deployment.Spec = spec
 					deployment.Annotations = annotations
-					deployment.Annotations[ValuesHashAnnotation] = hash
+					deployment.Annotations[builder.ValuesHashAnnotation] = hash
 					return ctrl.Result{}, r.Update(ctx, deployment)
 				}
 			} else {
@@ -574,7 +575,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 						return ctrl.Result{}, err
 					}
 					objAnnotations := map[string]string{
-						ValuesHashAnnotation: hash,
+						builder.ValuesHashAnnotation: hash,
 					}
 					maps.Copy(objAnnotations, annotations)
 					s3Service = &v1.Service{
@@ -606,12 +607,12 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				if err != nil {
 					return ctrl.Result{}, err
 				}
-				curHash, ok := s3Service.Annotations[ValuesHashAnnotation]
+				curHash, ok := s3Service.Annotations[builder.ValuesHashAnnotation]
 				if !ok || curHash != hash {
 					log.Info("Updating S3 Service for Service", "Service", service.Name)
 					s3Service.Spec = spec
 					s3Service.Annotations = annotations
-					s3Service.Annotations[ValuesHashAnnotation] = hash
+					s3Service.Annotations[builder.ValuesHashAnnotation] = hash
 					return ctrl.Result{}, r.Update(ctx, s3Service)
 				}
 			} else {
@@ -635,7 +636,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 
 				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
+					builder.ValuesHashAnnotation: hash,
 				}
 
 				maps.Copy(objAnnotations, annotations)
@@ -662,7 +663,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return ctrl.Result{}, err
 			}
 
-			curHash, ok := secret.Annotations[ValuesHashAnnotation]
+			curHash, ok := secret.Annotations[builder.ValuesHashAnnotation]
 			if !ok || curHash != hash {
 
 				log.Info("Updating Secret for Service", "Service", service.Name)
@@ -688,7 +689,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				}
 
 				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
+					builder.ValuesHashAnnotation: hash,
 				}
 
 				maps.Copy(objAnnotations, annotations)
@@ -722,12 +723,12 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return ctrl.Result{}, err
 			}
 
-			curHash, ok := ingress.Annotations[ValuesHashAnnotation]
+			curHash, ok := ingress.Annotations[builder.ValuesHashAnnotation]
 
 			if !ok || curHash != hash {
 				ingress.Spec = spec
 				ingress.Annotations = annotations
-				ingress.Annotations[ValuesHashAnnotation] = hash
+				ingress.Annotations[builder.ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, ingress)
 			}
 		}

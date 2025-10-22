@@ -36,6 +36,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -46,7 +47,7 @@ import (
 type ServiceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	ThrowerOptions
+	builder.ThrowerOptions
 	ClusterIssuerName string
 }
 
@@ -109,7 +110,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			TypeMeta: service.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      service.Name,
-				Namespace: r.InfrastructureTargetNamespace,
+				Namespace: r.TargetNamespace,
 			},
 			Spec: service.Spec,
 		}
@@ -128,7 +129,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				log.Info("Creating Certificate for Service", "name", service.Name)
 
 				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
+					builder.ValuesHashAnnotation: hash,
 				}
 
 				cert = &certmanagerv1.Certificate{
@@ -167,12 +168,12 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			// Update Certificate if spec changed
-			currCertHash, ok := cert.ObjectMeta.Annotations[ValuesHashAnnotation]
+			currCertHash, ok := cert.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currCertHash != hash {
 				log.Info("Updating Certificate for Service", "name", service.Name)
 				cert.Spec = certSpec
 				cert.ObjectMeta.Annotations = annotations
-				cert.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+				cert.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, cert)
 			}
 		}
@@ -208,8 +209,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				ChartRepository: r.ThrowerChartRepository,
 				Chart:           r.ThrowerChartName,
 				ChartVersion:    r.ThrowerChartVersion,
-				Project:         r.InfrastructureApplicationSetProject,
-				TargetNamespace: r.InfrastructureTargetNamespace,
+				Project:         r.ApplicationSetProject,
+				TargetNamespace: r.TargetNamespace,
 				Name:            fmt.Sprintf(`{{ name }}-service-%s`, service.Name),
 				// Roll out for both routing and caching
 				LabelMatch: [][]metav1.LabelSelectorRequirement{
@@ -244,7 +245,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				log.Info("Creating ApplicationSet for Service", "name", service.Name)
 
 				objAnnotations := map[string]string{
-					ValuesHashAnnotation: hash,
+					builder.ValuesHashAnnotation: hash,
 				}
 
 				maps.Copy(objAnnotations, annotations)
@@ -273,12 +274,12 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := appset.ObjectMeta.Annotations[ValuesHashAnnotation]
+			currAppsetHash, ok := appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Service", "name", service.Name)
 				appset.Spec = spec
 				maps.Copy(appset.ObjectMeta.Annotations, annotations)
-				appset.ObjectMeta.Annotations[ValuesHashAnnotation] = hash
+				appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
 				return ctrl.Result{}, r.Update(ctx, appset)
 			}
 		}

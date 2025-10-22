@@ -31,6 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
@@ -171,7 +172,7 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 				registration.ID = uid.String()
 				registration.NodeMeta = meta
-				registration.NodeMeta[ValuesHashAnnotation] = hash
+				registration.NodeMeta[builder.ValuesHashAnnotation] = hash
 
 				_, err = r.consulClient.Catalog().Register(&registration, &consulapi.WriteOptions{})
 
@@ -188,7 +189,7 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 					return ctrl.Result{}, err
 				}
 
-				curHash, ok := consulNode.Node.Meta[ValuesHashAnnotation]
+				curHash, ok := consulNode.Node.Meta[builder.ValuesHashAnnotation]
 
 				if !ok || curHash != hash {
 					_, err := r.consulClient.Catalog().Deregister(&consulapi.CatalogDeregistration{
@@ -210,7 +211,7 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 					registration.ID = uid.String()
 					registration.NodeMeta = meta
-					registration.NodeMeta[ValuesHashAnnotation] = hash
+					registration.NodeMeta[builder.ValuesHashAnnotation] = hash
 
 					_, err = r.consulClient.Catalog().Register(&registration, &consulapi.WriteOptions{})
 

@@ -40,6 +40,7 @@ import (
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -297,12 +298,12 @@ func main() {
 		if err = (&controller.LocationReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                    throwerChartName,
-				ThrowerChartVersion:                 throwerChartVersion,
-				ThrowerChartRepository:              throwerChartRepository,
-				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Location")
@@ -315,12 +316,12 @@ func main() {
 		if err = (&controller.ServiceReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                    throwerChartName,
-				ThrowerChartVersion:                 throwerChartVersion,
-				ThrowerChartRepository:              throwerChartRepository,
-				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
 			},
 			ClusterIssuerName: clusterIssuerName,
 		}).SetupWithManager(mgr); err != nil {
@@ -333,12 +334,12 @@ func main() {
 		if err = (&controller.PrefixListReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                    throwerChartName,
-				ThrowerChartVersion:                 throwerChartVersion,
-				ThrowerChartRepository:              throwerChartRepository,
-				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
@@ -350,12 +351,12 @@ func main() {
 		if err = (&controller.ChallengeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			ThrowerOptions: controller.ThrowerOptions{
-				ThrowerChartName:                    throwerChartName,
-				ThrowerChartVersion:                 throwerChartVersion,
-				ThrowerChartRepository:              throwerChartRepository,
-				InfrastructureTargetNamespace:       infrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: infrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Challenge")

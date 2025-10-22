@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	// +kubebuilder:scaffold:imports
@@ -113,12 +114,12 @@ var _ = BeforeSuite(func() {
 		err = (&LocationReconciler{
 			Client: k8sManager.GetClient(),
 			Scheme: k8sManager.GetScheme(),
-			ThrowerOptions: ThrowerOptions{
-				ThrowerChartName:                    ThrowerChartName,
-				ThrowerChartVersion:                 ThrowerChartVersion,
-				ThrowerChartRepository:              ThrowerChartRepository,
-				InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       ThrowerChartName,
+				ThrowerChartVersion:    ThrowerChartVersion,
+				ThrowerChartRepository: ThrowerChartRepository,
+				TargetNamespace:        InfrastructureTargetNamespace,
+				ApplicationSetProject:  InfrastructureApplicationSetProject,
 			},
 		}).SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
@@ -126,12 +127,12 @@ var _ = BeforeSuite(func() {
 		err = (&ServiceReconciler{
 			Client: k8sManager.GetClient(),
 			Scheme: k8sManager.GetScheme(),
-			ThrowerOptions: ThrowerOptions{
-				ThrowerChartName:                    ThrowerChartName,
-				ThrowerChartVersion:                 ThrowerChartVersion,
-				ThrowerChartRepository:              ThrowerChartRepository,
-				InfrastructureTargetNamespace:       InfrastructureTargetNamespace,
-				InfrastructureApplicationSetProject: InfrastructureApplicationSetProject,
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       ThrowerChartName,
+				ThrowerChartVersion:    ThrowerChartVersion,
+				ThrowerChartRepository: ThrowerChartRepository,
+				TargetNamespace:        InfrastructureTargetNamespace,
+				ApplicationSetProject:  InfrastructureApplicationSetProject,
 			},
 			ClusterIssuerName: ClusterIssuerName,
 		}).SetupWithManager(k8sManager)
