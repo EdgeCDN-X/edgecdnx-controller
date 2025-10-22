@@ -21,8 +21,6 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,13 +55,10 @@ const SourceController = "Controller"
 func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrastructurev1alpha1.PrefixList, ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	appset := &argoprojv1alpha1.ApplicationSet{}
-
 	resource := &infrastructurev1alpha1.PrefixList{
 		TypeMeta: prefixList.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      prefixList.Name,
-			Namespace: r.ThrowerOptions.TargetNamespace,
+			Name: prefixList.Name,
 		},
 		Spec: prefixList.Spec,
 	}
@@ -72,77 +67,48 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		Resources: []any{resource},
 	}
 
-	spec, annotations, hash, err := prefixesHelmValues.GetAppSetSpec(
-		throwable.AppsetSpecOptions{
-			ChartRepository: r.ThrowerChartRepository,
-			Chart:           r.ThrowerChartName,
-			ChartVersion:    r.ThrowerChartVersion,
-			AppsetNamespace: prefixList.Namespace,
-			Project:         r.ApplicationSetProject,
-			TargetNamespace: r.TargetNamespace,
-			Name:            fmt.Sprintf(`{{ name }}-prefixes-%s`, prefixList.Name),
-			// Roll out for both routing and caching
-			LabelMatch: [][]metav1.LabelSelectorRequirement{
-				{
-					{
-						Key:      "edgecdnx.com/routing",
-						Operator: metav1.LabelSelectorOpIn,
-						Values:   []string{"true", "yes"},
-					},
-				},
-			},
-		},
-	)
+	appsetBuilder, err := builder.AppsetBuilderFactory("PrefixList", prefixList.Name, prefixList.Namespace, r.ThrowerOptions)
+	if err != nil {
+		log.Error(err, "Failed to create ApplicationSet builder for PrefixList")
+		return ctrl.Result{}, err
+	}
 
+	appsetBuilder.SetHelmValues(prefixesHelmValues)
+
+	desiredAppset, hash, err := appsetBuilder.Build()
 	if err != nil {
 		log.Error(err, "Failed to get ApplicationSet spec for PrefixList")
 		return ctrl.Result{}, err
 	}
 
-	err = r.Get(ctx, types.NamespacedName{Namespace: prefixList.Namespace, Name: prefixList.Name}, appset)
+	currAppset := &argoprojv1alpha1.ApplicationSet{}
+	err = r.Get(ctx, types.NamespacedName{Namespace: prefixList.Namespace, Name: prefixList.Name}, currAppset)
 
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("ApplicationSet not found for PrefixList, creating it")
-			log.Info("Creating ApplicationSet for Service", "name", prefixList.Name)
-
-			objAnnotations := map[string]string{
-				builder.ValuesHashAnnotation: hash,
-			}
-
-			maps.Copy(objAnnotations, annotations)
-			appset = &argoprojv1alpha1.ApplicationSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        prefixList.Name,
-					Namespace:   prefixList.Namespace,
-					Annotations: objAnnotations,
-				},
-				Spec: spec,
-			}
-
-			err := controllerutil.SetControllerReference(prefixList, appset, r.Scheme)
+			err := controllerutil.SetControllerReference(prefixList, &desiredAppset, r.Scheme)
 			if err != nil {
 				log.Error(err, "Failed to set controller reference on ApplicationSet")
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{}, r.Create(ctx, appset)
+			return ctrl.Result{}, r.Create(ctx, &desiredAppset)
 		} else {
 			log.Error(err, "Failed to get ApplicationSet for PrefixList")
 			return ctrl.Result{}, err
 		}
 	} else {
-		if !appset.DeletionTimestamp.IsZero() {
+		if !currAppset.DeletionTimestamp.IsZero() {
 			log.Info("ApplicationSet for PrefixList is being deleted. Skipping reconciliation")
 			return ctrl.Result{}, nil
 		}
 
-		currAppsetHash, ok := appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+		currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 		if !ok || currAppsetHash != hash {
 			log.Info("Updating ApplicationSet for Prefixlist", "name", prefixList.Name)
-			appset.Spec = spec
-			maps.Copy(appset.ObjectMeta.Annotations, annotations)
-			appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
-			return ctrl.Result{}, r.Update(ctx, appset)
+			currAppset.Spec = desiredAppset.Spec
+			currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+			return ctrl.Result{}, r.Update(ctx, currAppset)
 		}
 	}
 
@@ -188,7 +154,6 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 							Destination: prefixList.Spec.Destination,
 						},
 					}
-
 					err = controllerutil.SetOwnerReference(prefixList, targetPrefixList, r.Scheme)
 					if err != nil {
 						log.Error(err, "Failed to set owner reference for PrefixList")
@@ -205,12 +170,10 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 					return ctrl.Result{}, nil
 				}
 
-				containsOwnerReference := false
-				for _, ownerRef := range generatedPrefixList.OwnerReferences {
-					if ownerRef.UID == prefixList.UID {
-						containsOwnerReference = true
-						break
-					}
+				containsOwnerReference, err := controllerutil.HasOwnerReference(generatedPrefixList.OwnerReferences, prefixList, r.Scheme)
+				if err != nil {
+					log.Error(err, "Failed to check owner reference for Generated PrefixList")
+					return ctrl.Result{}, err
 				}
 
 				if !containsOwnerReference {
@@ -236,7 +199,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 
 						if ownerPrefixList.Status.Status != HealthStatusHealthy {
 							log.Info("Owner PrefixList is in progress. Waiting for it to be healthy")
-							return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+							return ctrl.Result{Requeue: true}, nil
 						}
 
 						v4Prefixes = append(v4Prefixes, ownerPrefixList.Spec.Prefix.V4...)
@@ -281,7 +244,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 			}
 		}
 	} else {
-		log.Info("PrefixList is not yet initialized, likely just created. Setting status to healthy")
+		log.V(1).Info("PrefixList is not yet initialized, likely just created. Setting status to healthy")
 		prefixList.Status = infrastructurev1alpha1.PrefixListStatus{
 			Status: HealthStatusHealthy,
 		}

@@ -200,6 +200,27 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 			},
 		})
 		return b, nil
+	case "PrefixList":
+		b := newThrowableAppsetBuilder(name)
+		b.SetHelmChartParams(ChartParams{
+			ChartRepository: throwerOption.ThrowerChartRepository,
+			ChartName:       throwerOption.ThrowerChartName,
+			ChartVersion:    throwerOption.ThrowerChartVersion,
+			ReleaseName:     `prefixlist-{{ name }}`,
+		})
+		b.SetTargetAppMeta(fmt.Sprintf(`prefixlist-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.SetProject(throwerOption.ApplicationSetProject)
+		b.SetAppsetMeta(name, namespace)
+		b.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+			{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+			},
+		})
+		return b, nil
 	default:
 		return nil, fmt.Errorf("unknown builder type: %s", builderType)
 	}
