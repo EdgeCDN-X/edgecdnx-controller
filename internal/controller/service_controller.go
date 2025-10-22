@@ -18,11 +18,7 @@ package controller
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,38 +43,6 @@ type ServiceReconciler struct {
 	Scheme *runtime.Scheme
 	builder.ThrowerOptions
 	ClusterIssuerName string
-}
-
-func (r *ServiceReconciler) GetCertificateSpec(service *infrastructurev1alpha1.Service) (certmanagerv1.CertificateSpec, map[string]string, string, error) {
-
-	spec := certmanagerv1.CertificateSpec{
-		SecretName:  fmt.Sprintf("%s-tls", service.Name),
-		RenewBefore: &metav1.Duration{Duration: 240 * time.Hour},
-		IssuerRef: cmmeta.ObjectReference{
-			Name:  r.ClusterIssuerName,
-			Kind:  "ClusterIssuer",
-			Group: certmanagerv1.SchemeGroupVersion.Group,
-		},
-		DNSNames: []string{
-			service.Spec.Domain,
-		},
-	}
-
-	marshable := struct {
-		Spec        certmanagerv1.CertificateSpec `json:"spec"`
-		Annotations map[string]string             `json:"annotations"`
-	}{
-		Spec:        spec,
-		Annotations: map[string]string{},
-	}
-
-	hashable, err := json.Marshal(marshable)
-	if err != nil {
-		return certmanagerv1.CertificateSpec{}, nil, "", fmt.Errorf("failed to marshal certificate spec: %w", err)
-	}
-
-	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
-
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -113,73 +77,70 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		// ################ START - Certificate Issuance section
-		certSpec, annotations, hash, err := r.GetCertificateSpec(service)
+		certBuilder, err := builder.CertBuilderFactory("Service", service.Name, service.Namespace, service.Spec.Domain, cmmeta.ObjectReference{
+			Name:  r.ClusterIssuerName,
+			Kind:  "ClusterIssuer",
+			Group: certmanagerv1.SchemeGroupVersion.Group,
+		})
+
 		if err != nil {
-			log.Error(err, "Failed to get Certificate spec for Service")
+			log.Error(err, "Failed to create Certificate builder for Service")
 			return ctrl.Result{}, err
 		}
 
-		cert := &certmanagerv1.Certificate{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, cert)
+		desiredCert, hash, err := certBuilder.Build()
+		if err != nil {
+			log.Error(err, "Failed to get Certificate for Service")
+			return ctrl.Result{}, err
+		}
+
+		currCert := &certmanagerv1.Certificate{}
+		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, currCert)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				log.Info("Creating Certificate for Service", "name", service.Name)
 
-				objAnnotations := map[string]string{
-					builder.ValuesHashAnnotation: hash,
-				}
-
-				cert = &certmanagerv1.Certificate{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        service.Name,
-						Namespace:   service.Namespace,
-						Annotations: objAnnotations,
-					},
-					Spec: certSpec,
-				}
-
-				err = controllerutil.SetControllerReference(service, cert, r.Scheme)
+				err = controllerutil.SetControllerReference(service, &desiredCert, r.Scheme)
 				if err != nil {
 					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
-					return ctrl.Result{Requeue: true}, err
+					return ctrl.Result{}, err
 				}
-				return ctrl.Result{}, r.Create(ctx, cert)
+				return ctrl.Result{}, r.Create(ctx, &desiredCert)
 			}
 
 			log.Error(err, "unable to fetch Certificate for Service")
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		} else {
-			if !cert.DeletionTimestamp.IsZero() {
+			if !currCert.DeletionTimestamp.IsZero() {
 				log.Info("Certificate for Service is being deleted. Skipping reconciliation")
 				return ctrl.Result{}, nil
 			}
 
 			// Update Controller Reference if missing (should not happen tho)
-			if !controllerutil.HasControllerReference(cert) {
-				err := controllerutil.SetControllerReference(service, cert, r.Scheme)
+			if !controllerutil.HasControllerReference(currCert) {
+				err := controllerutil.SetControllerReference(service, currCert, r.Scheme)
 				if err != nil {
 					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
 					return ctrl.Result{Requeue: true}, err
 				}
-				return ctrl.Result{}, r.Update(ctx, cert)
+				return ctrl.Result{}, r.Update(ctx, currCert)
 			}
 
 			// Update Certificate if spec changed
-			currCertHash, ok := cert.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currCertHash, ok := currCert.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currCertHash != hash {
 				log.Info("Updating Certificate for Service", "name", service.Name)
-				cert.Spec = certSpec
-				cert.ObjectMeta.Annotations = annotations
-				cert.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = hash
-				return ctrl.Result{}, r.Update(ctx, cert)
+				currCert.Spec = desiredCert.Spec
+				currCert.ObjectMeta.Annotations = desiredCert.ObjectMeta.Annotations
+				return ctrl.Result{}, r.Update(ctx, currCert)
 			}
 		}
 
 		// Check if certificate is issuing
-		for cc := range cert.Status.Conditions {
-			if cert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionReady && cert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
+		for cc := range currCert.Status.Conditions {
+			if currCert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionReady && currCert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
 				secret := &corev1.Secret{}
-				err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: cert.Spec.SecretName}, secret)
+				err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: currCert.Spec.SecretName}, secret)
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return ctrl.Result{}, nil

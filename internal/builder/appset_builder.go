@@ -11,23 +11,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const ValuesHashAnnotation = "edgedcnx.com/values-hash"
-
-type ThrowerOptions struct {
-	ThrowerChartName       string
-	ThrowerChartVersion    string
-	ThrowerChartRepository string
-	TargetNamespace        string
-	ApplicationSetProject  string
-}
-
-type ChartParams struct {
-	ChartRepository string
-	ChartName       string
-	ChartVersion    string
-	ReleaseName     string
-}
-
 type IAppsetBuilder interface {
 	SetHelmChartParams(params ChartParams)
 	SetHelmValues(any)
@@ -45,6 +28,10 @@ type ThrowableAppsetBuilder struct {
 func newThrowableAppsetBuilder(name string) *ThrowableAppsetBuilder {
 	return &ThrowableAppsetBuilder{
 		appSet: argoprojv1alpha1.ApplicationSet{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: argoprojv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "ApplicationSet",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        name,
 				Annotations: map[string]string{},
