@@ -30,7 +30,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -44,158 +43,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const OriginTypeStatic = "static"
-
 // ServiceCacheReconciler reconciles a Service object
 type ServiceCacheReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	SecureUrlsEndpoint string
-}
-
-func (r *ServiceCacheReconciler) getS3GatewayService(service *infrastructurev1alpha1.Service) (v1.ServiceSpec, map[string]string, string, error) {
-
-	marshable := struct {
-		Spec        v1.ServiceSpec    `json:"spec"`
-		Annotations map[string]string `json:"annotations"`
-	}{
-		Spec: v1.ServiceSpec{
-			Selector: map[string]string{
-				"app":    "s3gateway",
-				"domain": service.Spec.Domain,
-			},
-			Ports: []v1.ServicePort{
-				{
-					Name:       "http",
-					Port:       80,
-					TargetPort: intstr.FromInt(80),
-				},
-			},
-			Type: v1.ServiceTypeClusterIP,
-		},
-		Annotations: map[string]string{},
-	}
-
-	hashable, err := json.Marshal(marshable)
-	if err != nil {
-		return v1.ServiceSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
-	}
-
-	md5Hash := md5.Sum(hashable)
-
-	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5Hash), nil
-}
-
-func (r *ServiceCacheReconciler) getS3GatewayDeploymentSpecs(service *infrastructurev1alpha1.Service) (appsv1.DeploymentSpec, map[string]string, string, error) {
-
-	var replicas int32 = 1
-
-	marshable := struct {
-		Spec        appsv1.DeploymentSpec `json:"spec"`
-		Annotations map[string]string     `json:"annotations"`
-	}{
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app":    "s3gateway",
-					"domain": service.Spec.Domain,
-				},
-			},
-			Template: v1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app":    "s3gateway",
-						"domain": service.Spec.Domain,
-					},
-				},
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:  "s3gateway",
-							Image: "fr6nco/nginx-s3-gateway:latest",
-							Ports: []v1.ContainerPort{
-								{
-									Name:          "http",
-									ContainerPort: 80,
-								},
-							},
-							Env: []v1.EnvVar{
-								{
-									Name:  "AWS_ACCESS_KEY_ID",
-									Value: service.Spec.S3OriginSpec[0].S3AccessKeyId,
-								},
-								{
-									Name:  "AWS_SECRET_ACCESS_KEY",
-									Value: service.Spec.S3OriginSpec[0].S3SecretKey,
-								},
-								{
-									Name:  "S3_BUCKET_NAME",
-									Value: service.Spec.S3OriginSpec[0].S3BucketName,
-								},
-								{
-									Name:  "S3_REGION",
-									Value: service.Spec.S3OriginSpec[0].S3Region,
-								},
-								{
-									Name:  "S3_SERVER",
-									Value: service.Spec.S3OriginSpec[0].S3Server,
-								},
-								{
-									Name:  "S3_SERVER_PROTO",
-									Value: service.Spec.S3OriginSpec[0].S3ServerProto,
-								},
-								{
-									Name:  "S3_SERVER_PORT",
-									Value: fmt.Sprintf("%d", service.Spec.S3OriginSpec[0].S3ServerPort),
-								},
-								{
-									Name:  "S3_STYLE",
-									Value: service.Spec.S3OriginSpec[0].S3Style,
-								},
-								{
-									Name:  "AWS_SIGS_VERSION",
-									Value: fmt.Sprintf("%d", service.Spec.S3OriginSpec[0].AwsSigsVersion),
-								},
-								{
-									Name:  "ALLOW_DIRECTORY_LIST",
-									Value: "false",
-								},
-							},
-							ReadinessProbe: &v1.Probe{
-								InitialDelaySeconds: 3,
-								ProbeHandler: v1.ProbeHandler{
-									HTTPGet: &v1.HTTPGetAction{
-										Path: "/health",
-										Port: intstr.FromInt(80),
-									},
-								},
-							},
-							LivenessProbe: &v1.Probe{
-								InitialDelaySeconds: 3,
-								ProbeHandler: v1.ProbeHandler{
-									HTTPGet: &v1.HTTPGetAction{
-										Path: "/health",
-										Port: intstr.FromInt(80),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Annotations: map[string]string{},
-	}
-
-	hashable, err := json.Marshal(marshable)
-	if err != nil {
-		return appsv1.DeploymentSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
-	}
-
-	md5Hash := md5.Sum(hashable)
-
-	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5Hash), nil
 }
 
 func (r *ServiceCacheReconciler) getIngressCache(service *infrastructurev1alpha1.Service) (networkingv1.IngressSpec, map[string]string, string, error) {
@@ -298,7 +150,7 @@ location /.edgecdnx/healthz {
 		marshable.Annotations["nginx.ingress.kubernetes.io/auth-url"] = r.SecureUrlsEndpoint
 	}
 
-	if service.Spec.OriginType == OriginTypeStatic {
+	if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
 		marshable.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = strings.ToUpper(service.Spec.StaticOrigins[0].Scheme)
 		marshable.Annotations["nginx.ingress.kubernetes.io/upstream-vhost"] = service.Spec.StaticOrigins[0].HostHeader
 		marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths = append(marshable.Spec.Rules[0].IngressRuleValue.HTTP.Paths, networkingv1.HTTPIngressPath{
@@ -378,25 +230,6 @@ func (r *ServiceCacheReconciler) getSecretCache(service *infrastructurev1alpha1.
 	return marshable, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
 }
 
-func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1.Service) (v1.ServiceSpec, map[string]string, string, error) {
-	marshable := struct {
-		Spec        v1.ServiceSpec    `json:"spec"`
-		Annotations map[string]string `json:"annotations"`
-	}{
-		Spec: v1.ServiceSpec{
-			ExternalName: service.Spec.StaticOrigins[0].Upstream,
-			Type:         v1.ServiceTypeExternalName,
-		},
-		Annotations: map[string]string{},
-	}
-
-	hashable, err := json.Marshal(marshable)
-	if err != nil {
-		return v1.ServiceSpec{}, make(map[string]string), "", fmt.Errorf("failed to marshal values object: %w", err)
-	}
-	return marshable.Spec, marshable.Annotations, fmt.Sprintf("%x", md5.Sum(hashable)), nil
-}
-
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/finalizers,verbs=update
@@ -414,11 +247,10 @@ func (r *ServiceCacheReconciler) getServiceCache(service *infrastructurev1alpha1
 func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	log.Info("Reconciling ServiceCache", "Service", req.Name)
+	log.Info("Reconciling CacheService", "Service", req.Name)
 
 	service := &infrastructurev1alpha1.Service{}
 
-	// Object not found
 	if err := r.Get(ctx, req.NamespacedName, service); err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			log.Error(err, "unable to fetch Service")
@@ -434,190 +266,124 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		// Find ExternalName Service
-		extService := &v1.Service{}
-		extServiceName := strings.Replace(service.Name, ".", "-", -1)
-		err := r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: extServiceName}, extService)
+		// Service ->
+		// On Static upstream => ExternalName Service
+		// On S3 upstream => S3 Gateway Service + deployment
+
+		// Service
+		serviceName := strings.Replace(service.Name, ".", "-", -1)
+		serviceBuilder, err := builder.CoreV1ServiceBuilderFactory("default", serviceName, service.Namespace)
+
+		if err != nil {
+			log.Error(err, "unable to create ServiceBuilder", "Service", service.Name)
+			return ctrl.Result{}, err
+		}
+
+		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
+			serviceBuilder.WithUpstream(service.Spec.StaticOrigins[0].Upstream)
+		}
+
+		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeS3 {
+			serviceBuilder.WithS3Gateway(service.Spec.Domain)
+		}
+
+		desiredService, hash, err := serviceBuilder.Build()
+		if err != nil {
+			log.Error(err, "unable to build Service spec", "Service", service.Name)
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Checking V1Service for Service", "Service", service.Name)
+		curService := &v1.Service{}
+		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: serviceName}, curService)
 
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				if service.Spec.OriginType == OriginTypeStatic {
-					log.Info("ExternalName Service not found, creating it", "Service", extServiceName)
+				log.Info("Service not found, creating it", "Service", service.Name)
 
-					spec, annotations, hash, err := r.getServiceCache(service)
-
-					if err != nil {
-						return ctrl.Result{}, err
-					}
-
-					objAnnotations := map[string]string{
-						builder.ValuesHashAnnotation: hash,
-					}
-
-					maps.Copy(objAnnotations, annotations)
-
-					// StaticOrigin use case
-					extService = &v1.Service{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:        extServiceName,
-							Namespace:   service.Namespace,
-							Annotations: objAnnotations,
-						},
-						Spec: spec,
-					}
-
-					err = controllerutil.SetControllerReference(service, extService, r.Scheme)
-					if err != nil {
-						log.Error(err, "unable to set owner reference on Service", "Service", extServiceName)
-						return ctrl.Result{}, err
-					}
-					return ctrl.Result{}, r.Create(ctx, extService)
+				err = controllerutil.SetControllerReference(service, &desiredService, r.Scheme)
+				if err != nil {
+					log.Error(err, "unable to set owner reference on Service", "Service", service.Name)
+					return ctrl.Result{}, err
 				}
+				return ctrl.Result{}, r.Create(ctx, &desiredService)
 			} else {
-				log.Error(err, "unable to fetch Service", "Service", extServiceName)
-				return ctrl.Result{Requeue: true}, err
+				log.Error(err, "unable to fetch Service", "Service", service.Name)
+				return ctrl.Result{}, err
 			}
 		} else {
-			if service.Spec.OriginType == OriginTypeStatic {
-				spec, annotations, hash, err := r.getServiceCache(service)
-
-				if err != nil {
-					return ctrl.Result{Requeue: true}, err
-				}
-
-				curHash, ok := extService.Annotations[builder.ValuesHashAnnotation]
-				if !ok || curHash != hash {
-					extService.Spec = spec
-					extService.Annotations = annotations
-					extService.Annotations[builder.ValuesHashAnnotation] = hash
-					return ctrl.Result{}, r.Update(ctx, extService)
-				}
-			} else {
-				log.Info("ExternalName Service exists, but no StaticOrigins defined, deleting it")
-				return ctrl.Result{}, r.Delete(ctx, extService)
+			curHash, ok := curService.Annotations[builder.ValuesHashAnnotation]
+			if !ok || curHash != hash {
+				log.Info("Updating Service for Service", "Service", service.Name)
+				curService.Spec = desiredService.Spec
+				curService.SetAnnotations(desiredService.Annotations)
+				return ctrl.Result{}, r.Update(ctx, curService)
 			}
 		}
 
 		// S3Gateway Deployment
 		deploymentName := strings.Replace(service.Name, ".", "-", -1) + "-s3gateway"
-		deployment := &appsv1.Deployment{}
-		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: deploymentName}, deployment)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				if service.Spec.OriginType == "s3" {
-					log.Info("S3Gateway Deployment not found, creating it")
 
-					spec, annotations, hash, err := r.getS3GatewayDeploymentSpecs(service)
-					if err != nil {
-						return ctrl.Result{}, err
-					}
-
-					objAnnotations := map[string]string{
-						builder.ValuesHashAnnotation: hash,
-					}
-
-					maps.Copy(objAnnotations, annotations)
-
-					deployment = &appsv1.Deployment{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:        deploymentName,
-							Namespace:   service.Namespace,
-							Annotations: objAnnotations,
-						},
-						Spec: spec,
-					}
-
-					err = controllerutil.SetControllerReference(service, deployment, r.Scheme)
-					if err != nil {
-						log.Error(err, "unable to set owner reference on S3Gateway Deployment", "Service", service.Name)
-						return ctrl.Result{}, err
-					}
-					return ctrl.Result{}, r.Create(ctx, deployment)
-				}
-			} else {
-				log.Error(err, "unable to fetch S3Gateway Deployment", "Service", service.Name)
-				return ctrl.Result{Requeue: true}, err
-			}
-		} else {
-			if service.Spec.OriginType == "s3" {
-
-				spec, annotations, hash, err := r.getS3GatewayDeploymentSpecs(service)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-
-				curHash, ok := deployment.Annotations[builder.ValuesHashAnnotation]
-				if !ok || curHash != hash {
-					log.Info("Updating S3Gateway Deployment for Service", "Service", service.Name)
-					deployment.Spec = spec
-					deployment.Annotations = annotations
-					deployment.Annotations[builder.ValuesHashAnnotation] = hash
-					return ctrl.Result{}, r.Update(ctx, deployment)
-				}
-			} else {
-				log.Info("S3Gateway Deployment exists, but no S3Origin defined, deleting it", "Service", service.Name)
+		// If OriginType is static, delete deployment if exists
+		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
+			// If not S3 origin type, ensure deployment is deleted if exists
+			deployment := &appsv1.Deployment{}
+			err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: deploymentName}, deployment)
+			if err == nil {
+				log.Info("Deleting S3 Gateway Deployment for Service", "Service", service.Name)
 				return ctrl.Result{}, r.Delete(ctx, deployment)
+			} else if apierrors.IsNotFound(err) {
+				// Deployment not found, nothing to do
+				return ctrl.Result{}, nil
+			} else {
+				log.Error(err, "unable to fetch Deployment", "Service", service.Name)
+				return ctrl.Result{}, err
 			}
 		}
 
-		// S3 Service
-		log.Info("Checking S3 Service for Service", "Service", service.Name)
-		s3Service := &v1.Service{}
-		s3ServiceName := fmt.Sprintf("%s-s3-gateway", strings.Replace(service.Name, ".", "-", -1))
-		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: s3ServiceName}, s3Service)
-
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				if service.Spec.OriginType == "s3" {
-					log.Info("S3 Service not found, creating it", "Service", service.Name)
-					spec, annotations, hash, err := r.getS3GatewayService(service)
-					if err != nil {
-						return ctrl.Result{}, err
-					}
-					objAnnotations := map[string]string{
-						builder.ValuesHashAnnotation: hash,
-					}
-					maps.Copy(objAnnotations, annotations)
-					s3Service = &v1.Service{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:        s3ServiceName,
-							Namespace:   service.Namespace,
-							Annotations: objAnnotations,
-						},
-						Spec: spec,
-					}
-					err = controllerutil.SetControllerReference(service, s3Service, r.Scheme)
-					if err != nil {
-						log.Error(err, "unable to set owner reference on S3 Service", "Service", service.Name)
-						return ctrl.Result{}, err
-					}
-					err = r.Create(ctx, s3Service)
-					if err != nil {
-						log.Error(err, "unable to create S3 Service for Service", "Service", service.Name)
-						return ctrl.Result{}, err
-					}
-				}
-			} else {
-				log.Error(err, "unable to fetch S3 Service for Service", "Service", service.Name)
-				return ctrl.Result{Requeue: true}, err
+		// If OriginType is S3, ensure deployment exists
+		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeS3 {
+			deploymentBuilder, err := builder.DeploymentBuilderFactory("s3-gateway", deploymentName, service.Namespace)
+			if err != nil {
+				log.Error(err, "unable to create DeploymentBuilder", "Service", service.Name)
+				return ctrl.Result{}, err
 			}
-		} else {
-			if service.Spec.OriginType == "s3" {
-				spec, annotations, hash, err := r.getS3GatewayService(service)
-				if err != nil {
+
+			deploymentBuilder.WithService(service)
+
+			desiredDeployment, hash, err := deploymentBuilder.Build()
+
+			if err != nil {
+				log.Error(err, "unable to build Deployment spec", "Service", service.Name)
+				return ctrl.Result{}, err
+			}
+
+			log.Info("Checking Deployment for Service", "Service", service.Name)
+			curDeployment := &appsv1.Deployment{}
+			err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: deploymentName}, curDeployment)
+
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Info("Deployment not found, creating it", "Service", service.Name)
+
+					err = controllerutil.SetControllerReference(service, &desiredDeployment, r.Scheme)
+					if err != nil {
+						log.Error(err, "unable to set owner reference on Deployment", "Service", service.Name)
+						return ctrl.Result{}, err
+					}
+					return ctrl.Result{}, r.Create(ctx, &desiredDeployment)
+				} else {
+					log.Error(err, "unable to fetch Deployment", "Service", service.Name)
 					return ctrl.Result{}, err
 				}
-				curHash, ok := s3Service.Annotations[builder.ValuesHashAnnotation]
-				if !ok || curHash != hash {
-					log.Info("Updating S3 Service for Service", "Service", service.Name)
-					s3Service.Spec = spec
-					s3Service.Annotations = annotations
-					s3Service.Annotations[builder.ValuesHashAnnotation] = hash
-					return ctrl.Result{}, r.Update(ctx, s3Service)
-				}
 			} else {
-				log.Info("S3 Service exists, but no S3Origin defined, deleting it", "Service", service.Name)
-				return ctrl.Result{}, r.Delete(ctx, s3Service)
+				curHash, ok := curDeployment.Annotations[builder.ValuesHashAnnotation]
+				if !ok || curHash != hash {
+					log.Info("Updating Deployment for Service", "Service", service.Name)
+					curDeployment.Spec = desiredDeployment.Spec
+					curDeployment.SetAnnotations(desiredDeployment.Annotations)
+					return ctrl.Result{}, r.Update(ctx, curDeployment)
+				}
 			}
 		}
 

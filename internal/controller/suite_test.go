@@ -152,6 +152,16 @@ var _ = BeforeSuite(func() {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
+	if os.Getenv("ROLE") == "router" {
+		locRoutingReconciler := &LocationRoutingReconciler{
+			Client:         k8sManager.GetClient(),
+			Scheme:         k8sManager.GetScheme(),
+			ConsulEndpoint: "http://localhost:8500",
+		}
+		err = locRoutingReconciler.SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)

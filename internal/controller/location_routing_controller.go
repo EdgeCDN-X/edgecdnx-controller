@@ -43,6 +43,8 @@ type LocationRoutingReconciler struct {
 	consulClient   *consulapi.Client
 }
 
+// TODO rewrite this component so it is not dependent on Consul and Consul ESM.
+
 func (r *LocationRoutingReconciler) getConsulNodeInstance(location *infrastructurev1alpha1.Location, idx int) (consulapi.CatalogRegistration, map[string]string, string, error) {
 
 	nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", location.Spec.Nodes[idx].Name, location.Name)

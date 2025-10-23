@@ -152,3 +152,6 @@ type ServiceList struct {
 func init() {
 	SchemeBuilder.Register(&Service{}, &ServiceList{})
 }
+
+const OriginTypeStatic = "static"
+const OriginTypeS3 = "s3"

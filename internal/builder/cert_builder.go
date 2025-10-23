@@ -90,6 +90,6 @@ func CertBuilderFactory(builderType string, name string, namespace string, servi
 		b.WithIssuerRef(IssuerRef)
 		return b, nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unknown builder type: %s", builderType)
 	}
 }
