@@ -13,10 +13,10 @@ import (
 )
 
 type ICertificateBuilder interface {
-	SetSecretName(secretName string)
-	SetDNSNames(dnsNames []string)
-	SetIssuerRef(issuerRef cmmeta.ObjectReference)
-	SetRenewBefore(duration metav1.Duration)
+	WithSecretName(secretName string)
+	WithDNSNames(dnsNames []string)
+	WithIssuerRef(issuerRef cmmeta.ObjectReference)
+	WithRenewBefore(duration metav1.Duration)
 	Build() (certmanagerv1.Certificate, string, error)
 }
 
@@ -24,7 +24,7 @@ type DefaultCertBuilder struct {
 	cert certmanagerv1.Certificate
 }
 
-func newDefaultCertBuilder(name string, namespace string, serviceName string) *DefaultCertBuilder {
+func NewDefaultCertBuilder(name string, namespace string, serviceName string) *DefaultCertBuilder {
 	{
 		return &DefaultCertBuilder{
 			cert: certmanagerv1.Certificate{
@@ -49,19 +49,19 @@ func newDefaultCertBuilder(name string, namespace string, serviceName string) *D
 	}
 }
 
-func (b *DefaultCertBuilder) SetSecretName(secretName string) {
+func (b *DefaultCertBuilder) WithSecretName(secretName string) {
 	b.cert.Spec.SecretName = secretName
 }
 
-func (b *DefaultCertBuilder) SetDNSNames(dnsNames []string) {
+func (b *DefaultCertBuilder) WithDNSNames(dnsNames []string) {
 	b.cert.Spec.DNSNames = dnsNames
 }
 
-func (b *DefaultCertBuilder) SetIssuerRef(issuerRef cmmeta.ObjectReference) {
+func (b *DefaultCertBuilder) WithIssuerRef(issuerRef cmmeta.ObjectReference) {
 	b.cert.Spec.IssuerRef = issuerRef
 }
 
-func (b *DefaultCertBuilder) SetRenewBefore(duration metav1.Duration) {
+func (b *DefaultCertBuilder) WithRenewBefore(duration metav1.Duration) {
 	b.cert.Spec.RenewBefore = &duration
 }
 
@@ -86,8 +86,8 @@ func (b *DefaultCertBuilder) Build() (certmanagerv1.Certificate, string, error) 
 func CertBuilderFactory(builderType string, name string, namespace string, serviceName string, IssuerRef cmmeta.ObjectReference) (ICertificateBuilder, error) {
 	switch builderType {
 	case "Service":
-		b := newDefaultCertBuilder(name, namespace, serviceName)
-		b.SetIssuerRef(IssuerRef)
+		b := NewDefaultCertBuilder(name, namespace, serviceName)
+		b.WithIssuerRef(IssuerRef)
 		return b, nil
 	default:
 		return nil, nil

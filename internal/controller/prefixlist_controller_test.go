@@ -172,7 +172,7 @@ var _ = Describe("PrefixList Controller", func() {
 					ApplicationSetProject:  InfrastructureApplicationSetProject,
 				})
 				Expect(err).NotTo(HaveOccurred())
-				appsetBuilder.SetHelmValues(prefixesHelmValues)
+				appsetBuilder.WithHelmValues(prefixesHelmValues)
 				_, hash, err := appsetBuilder.Build()
 				Expect(err).NotTo(HaveOccurred())
 
@@ -270,7 +270,7 @@ var _ = Describe("PrefixList Controller", func() {
 					ApplicationSetProject:  InfrastructureApplicationSetProject,
 				})
 				Expect(err).NotTo(HaveOccurred())
-				appsetBuilder.SetHelmValues(prefixesHelmValues)
+				appsetBuilder.WithHelmValues(prefixesHelmValues)
 				_, hash, err := appsetBuilder.Build()
 				Expect(err).NotTo(HaveOccurred())
 

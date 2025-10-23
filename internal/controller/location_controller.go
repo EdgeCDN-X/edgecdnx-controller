@@ -82,7 +82,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			log.Error(err, "Failed to create ApplicationSet builder for Location")
 			return ctrl.Result{}, err
 		}
-		appsetBuilder.SetHelmValues(locationHelmValues)
+		appsetBuilder.WithHelmValues(locationHelmValues)
 		desiredAppset, hash, err := appsetBuilder.Build()
 
 		if err != nil {

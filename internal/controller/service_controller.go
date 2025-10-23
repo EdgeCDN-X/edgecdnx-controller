@@ -169,7 +169,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}{
 			Resources: []any{serviceRawResource},
 		}
-		appsetBuilder.SetHelmValues(serviceHelmValues)
+		appsetBuilder.WithHelmValues(serviceHelmValues)
 
 		desiredAppset, hash, err := appsetBuilder.Build()
 		if err != nil {

@@ -286,7 +286,7 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			log.Error(err, "Failed to create ApplicationSet builder for Challenge")
 			return ctrl.Result{}, err
 		}
-		challengeSolverBuilder.SetHelmValues(challengeSolverHelmValues)
+		challengeSolverBuilder.WithHelmValues(challengeSolverHelmValues)
 
 		desiredAppset, hash, err := challengeSolverBuilder.Build()
 		if err != nil {

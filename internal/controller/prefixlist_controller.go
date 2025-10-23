@@ -74,7 +74,7 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 		return ctrl.Result{}, err
 	}
 
-	appsetBuilder.SetHelmValues(prefixesHelmValues)
+	appsetBuilder.WithHelmValues(prefixesHelmValues)
 
 	desiredAppset, hash, err := appsetBuilder.Build()
 	if err != nil {

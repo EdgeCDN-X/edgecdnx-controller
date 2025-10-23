@@ -184,7 +184,7 @@ var _ = Describe("Location Reconciler", func() {
 			}{
 				Resources: []any{resource},
 			}
-			appsetBuilder.SetHelmValues(locationHelmValues)
+			appsetBuilder.WithHelmValues(locationHelmValues)
 			_, hash, _ := appsetBuilder.Build()
 
 			By("Verifying that the ApplicationSet has the correct hash annotation")
@@ -286,7 +286,7 @@ var _ = Describe("Location Reconciler", func() {
 			}{
 				Resources: []any{resource},
 			}
-			appsetBuilder.SetHelmValues(locationHelmValues)
+			appsetBuilder.WithHelmValues(locationHelmValues)
 			_, hash, _ := appsetBuilder.Build()
 
 			By("Verifying that the ApplicationSet has the correct updated hash annotation")

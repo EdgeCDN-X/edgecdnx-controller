@@ -12,12 +12,12 @@ import (
 )
 
 type IAppsetBuilder interface {
-	SetHelmChartParams(params ChartParams)
-	SetHelmValues(any)
-	SetTargetAppMeta(templatedName string, namespace string, targetNamespace string)
-	SetProject(project string)
-	SetLabelMatch([][]metav1.LabelSelectorRequirement)
-	SetAppsetMeta(name string, namespace string)
+	WithHelmChartParams(params ChartParams)
+	WithHelmValues(any)
+	WithTargetAppMeta(templatedName string, namespace string, targetNamespace string)
+	WithProject(project string)
+	WithLabelMatchers([][]metav1.LabelSelectorRequirement)
+	WithAppsetMeta(name string, namespace string)
 	Build() (argoprojv1alpha1.ApplicationSet, string, error)
 }
 
@@ -25,7 +25,7 @@ type ThrowableAppsetBuilder struct {
 	appSet argoprojv1alpha1.ApplicationSet
 }
 
-func newThrowableAppsetBuilder(name string) *ThrowableAppsetBuilder {
+func NewThrowableAppsetBuilder(name string) *ThrowableAppsetBuilder {
 	return &ThrowableAppsetBuilder{
 		appSet: argoprojv1alpha1.ApplicationSet{
 			TypeMeta: metav1.TypeMeta{
@@ -59,7 +59,7 @@ func newThrowableAppsetBuilder(name string) *ThrowableAppsetBuilder {
 	}
 }
 
-func (b *ThrowableAppsetBuilder) SetHelmChartParams(params ChartParams) {
+func (b *ThrowableAppsetBuilder) WithHelmChartParams(params ChartParams) {
 	if len(b.appSet.Spec.Template.Spec.Sources) == 0 {
 		b.appSet.Spec.Template.Spec.Sources = append(b.appSet.Spec.Template.Spec.Sources, argoprojv1alpha1.ApplicationSource{
 			Chart:          params.ChartName,
@@ -77,7 +77,7 @@ func (b *ThrowableAppsetBuilder) SetHelmChartParams(params ChartParams) {
 	}
 }
 
-func (b *ThrowableAppsetBuilder) SetHelmValues(values any) {
+func (b *ThrowableAppsetBuilder) WithHelmValues(values any) {
 	valuesObject, _ := json.Marshal(values)
 
 	if len(b.appSet.Spec.Template.Spec.Sources) == 0 {
@@ -95,18 +95,18 @@ func (b *ThrowableAppsetBuilder) SetHelmValues(values any) {
 	}
 }
 
-func (b *ThrowableAppsetBuilder) SetTargetAppMeta(templatedName string, namespace string, targetNamespace string) {
+func (b *ThrowableAppsetBuilder) WithTargetAppMeta(templatedName string, namespace string, targetNamespace string) {
 	b.appSet.Spec.Template.ApplicationSetTemplateMeta.Name = templatedName
 	b.appSet.Spec.Template.ApplicationSetTemplateMeta.Namespace = namespace
 	b.appSet.Spec.Template.Spec.Destination.Namespace = targetNamespace
 	b.appSet.Spec.Template.Spec.Destination.Server = "{{ server }}"
 }
 
-func (b *ThrowableAppsetBuilder) SetProject(project string) {
+func (b *ThrowableAppsetBuilder) WithProject(project string) {
 	b.appSet.Spec.Template.Spec.Project = project
 }
 
-func (b *ThrowableAppsetBuilder) SetLabelMatch(labelMatch [][]metav1.LabelSelectorRequirement) {
+func (b *ThrowableAppsetBuilder) WithLabelMatchers(labelMatch [][]metav1.LabelSelectorRequirement) {
 	generators := make([]argoprojv1alpha1.ApplicationSetGenerator, 0, len(labelMatch))
 	for g := range labelMatch {
 		generators = append(generators, argoprojv1alpha1.ApplicationSetGenerator{
@@ -120,7 +120,7 @@ func (b *ThrowableAppsetBuilder) SetLabelMatch(labelMatch [][]metav1.LabelSelect
 	b.appSet.Spec.Generators = generators
 }
 
-func (b *ThrowableAppsetBuilder) SetAppsetMeta(name string, namespace string) {
+func (b *ThrowableAppsetBuilder) WithAppsetMeta(name string, namespace string) {
 	b.appSet.ObjectMeta.Name = name
 	b.appSet.ObjectMeta.Namespace = namespace
 }
@@ -146,17 +146,17 @@ func (b *ThrowableAppsetBuilder) Build() (argoprojv1alpha1.ApplicationSet, strin
 func AppsetBuilderFactory(builderType string, name string, namespace string, throwerOption ThrowerOptions) (IAppsetBuilder, error) {
 	switch builderType {
 	case "Location":
-		b := newThrowableAppsetBuilder(name)
-		b.SetHelmChartParams(ChartParams{
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
 			ChartRepository: throwerOption.ThrowerChartRepository,
 			ChartName:       throwerOption.ThrowerChartName,
 			ChartVersion:    throwerOption.ThrowerChartVersion,
 			ReleaseName:     `location-{{ name }}`,
 		})
-		b.SetTargetAppMeta(fmt.Sprintf(`location-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
-		b.SetProject(throwerOption.ApplicationSetProject)
-		b.SetAppsetMeta(name, namespace)
-		b.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+		b.WithTargetAppMeta(fmt.Sprintf(`location-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
 			{
 				{
 					Key:      "edgecdnx.com/routing",
@@ -167,17 +167,17 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 		})
 		return b, nil
 	case "Challenge":
-		b := newThrowableAppsetBuilder(name)
-		b.SetHelmChartParams(ChartParams{
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
 			ChartRepository: throwerOption.ThrowerChartRepository,
 			ChartName:       throwerOption.ThrowerChartName,
 			ChartVersion:    throwerOption.ThrowerChartVersion,
 			ReleaseName:     `challenge-{{ name }}`,
 		})
-		b.SetTargetAppMeta(fmt.Sprintf(`challenge-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
-		b.SetProject(throwerOption.ApplicationSetProject)
-		b.SetAppsetMeta(name, namespace)
-		b.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+		b.WithTargetAppMeta(fmt.Sprintf(`challenge-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
 			{
 				{
 					Key:      "edgecdnx.com/caching",
@@ -188,17 +188,17 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 		})
 		return b, nil
 	case "PrefixList":
-		b := newThrowableAppsetBuilder(name)
-		b.SetHelmChartParams(ChartParams{
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
 			ChartRepository: throwerOption.ThrowerChartRepository,
 			ChartName:       throwerOption.ThrowerChartName,
 			ChartVersion:    throwerOption.ThrowerChartVersion,
 			ReleaseName:     `prefixlist-{{ name }}`,
 		})
-		b.SetTargetAppMeta(fmt.Sprintf(`prefixlist-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
-		b.SetProject(throwerOption.ApplicationSetProject)
-		b.SetAppsetMeta(name, namespace)
-		b.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+		b.WithTargetAppMeta(fmt.Sprintf(`prefixlist-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
 			{
 				{
 					Key:      "edgecdnx.com/routing",
@@ -209,17 +209,17 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 		})
 		return b, nil
 	case "Service":
-		b := newThrowableAppsetBuilder(name)
-		b.SetHelmChartParams(ChartParams{
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
 			ChartRepository: throwerOption.ThrowerChartRepository,
 			ChartName:       throwerOption.ThrowerChartName,
 			ChartVersion:    throwerOption.ThrowerChartVersion,
 			ReleaseName:     `service-{{ name }}`,
 		})
-		b.SetTargetAppMeta(fmt.Sprintf(`service-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
-		b.SetProject(throwerOption.ApplicationSetProject)
-		b.SetAppsetMeta(name, namespace)
-		b.SetLabelMatch([][]metav1.LabelSelectorRequirement{
+		b.WithTargetAppMeta(fmt.Sprintf(`service-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
 			{
 				{
 					Key:      "edgecdnx.com/routing",

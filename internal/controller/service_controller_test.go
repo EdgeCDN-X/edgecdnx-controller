@@ -212,7 +212,7 @@ var _ = Describe("Service Controller", func() {
 				}{
 					Resources: []any{serviceRawResource},
 				}
-				appsetBuilder.SetHelmValues(serviceHelmValues)
+				appsetBuilder.WithHelmValues(serviceHelmValues)
 				_, hash, err = appsetBuilder.Build()
 				Expect(err).ToNot(HaveOccurred())
 				Expect(appset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]).To(Equal(hash))
