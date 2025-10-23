@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/throwable"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -250,7 +249,6 @@ func (r *ChallengeReconciler) getChallengeResources(challenge *acmev1.Challenge,
 	return *pod, *service, *ingress, nil
 }
 
-// TODO tests
 func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -276,8 +274,9 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if challenge.Status.Presented && challenge.Status.Processing {
-
-		challengeSolverHelmValues := throwable.ThrowerHelmValues{
+		challengeSolverHelmValues := struct {
+			Resources []any `json:"resources"`
+		}{
 			Resources: []any{pod, service, ingress},
 		}
 
@@ -306,8 +305,8 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{}, err
 			}
 			log.Info("No ApplicationSet found for Challenge, creating one")
-			// Create ApplicationSet logic here
 
+			// Create ApplicationSet logic here
 			err := controllerutil.SetControllerReference(challenge, &desiredAppset, r.Scheme)
 			if err != nil {
 				log.Error(err, "Failed to set controller reference on ApplicationSet")

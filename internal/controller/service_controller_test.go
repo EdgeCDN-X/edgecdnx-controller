@@ -262,7 +262,8 @@ var _ = Describe("Service Controller", func() {
 					var raw struct {
 						Resources []infrastructurev1alpha1.Service `json:"resources"`
 					}
-					yaml.Unmarshal(appset.Spec.Template.Spec.Sources[0].Helm.ValuesObject.Raw, &raw)
+					err := yaml.Unmarshal(appset.Spec.Template.Spec.Sources[0].Helm.ValuesObject.Raw, &raw)
+					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(raw.Resources[0].Spec.Certificate.Crt).To(Equal(tlsCert))
 					g.Expect(raw.Resources[0].Spec.Certificate.Key).To(Equal(tlsKey))
 				}, timeout, interval).Should(Succeed())
