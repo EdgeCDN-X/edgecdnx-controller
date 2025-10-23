@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"os"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -224,14 +226,20 @@ var _ = Describe("Service Controller", func() {
 				certLookupKey := types.NamespacedName{Name: ServiceName, Namespace: Namespace}
 
 				Expect(k8sClient.Get(ctx, certLookupKey, cert)).To(Succeed())
+
+				decodedCert, err := base64.StdEncoding.DecodeString(tlsCert)
+				Expect(err).ToNot(HaveOccurred())
+				decodedKey, err := base64.StdEncoding.DecodeString(tlsKey)
+				Expect(err).ToNot(HaveOccurred())
+
 				tlsSecret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      cert.Spec.SecretName,
 						Namespace: Namespace,
 					},
 					Data: map[string][]byte{
-						"tls.crt": []byte(tlsCert),
-						"tls.key": []byte(tlsKey),
+						"tls.crt": decodedCert,
+						"tls.key": decodedKey,
 					},
 					Type: corev1.SecretTypeTLS,
 				}
@@ -246,13 +254,18 @@ var _ = Describe("Service Controller", func() {
 				Expect(k8sClient.Status().Update(ctx, cert)).To(Succeed())
 
 				By("Verifying that Service got Secret Populated")
+				Eventually(func(g Gomega) {
+					appset := &argoprojv1alpha1.ApplicationSet{}
+					appsetLookupKey := types.NamespacedName{Name: ServiceName, Namespace: Namespace}
+					g.Expect(k8sClient.Get(ctx, appsetLookupKey, appset)).To(Succeed())
 
-				// TODO read certificate data from the Applicationset
-				// Eventually(func(g Gomega) {
-				// 	appset := &argoprojv1alpha1.ApplicationSet{}
-				// 	appsetLookupKey := types.NamespacedName{Name: ServiceName, Namespace: Namespace}
-				// 	g.Expect(k8sClient.Get(ctx, appsetLookupKey, appset)).To(Succeed())
-				// }, timeout, interval).Should(Succeed())
+					var raw struct {
+						Resources []infrastructurev1alpha1.Service `json:"resources"`
+					}
+					yaml.Unmarshal(appset.Spec.Template.Spec.Sources[0].Helm.ValuesObject.Raw, &raw)
+					g.Expect(raw.Resources[0].Spec.Certificate.Crt).To(Equal(tlsCert))
+					g.Expect(raw.Resources[0].Spec.Certificate.Key).To(Equal(tlsKey))
+				}, timeout, interval).Should(Succeed())
 			})
 		})
 	})
