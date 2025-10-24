@@ -203,8 +203,6 @@ location /.edgecdnx/healthz {
 			},
 		})
 	}
-
-	return
 }
 
 func NewCacheIngressBuilder(name string, namespace string, config CacheIngressBuilderConfig) *CacheIngressBuilder {

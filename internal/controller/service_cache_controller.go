@@ -250,6 +250,10 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		ingressBuilder.WithService(*service)
 		desiredIngress, hash, err := ingressBuilder.Build()
+		if err != nil {
+			log.Error(err, "unable to build Ingress spec", "Service", service.Name)
+			return ctrl.Result{}, err
+		}
 
 		currIngress := &networkingv1.Ingress{}
 		err = r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: service.Name}, currIngress)
