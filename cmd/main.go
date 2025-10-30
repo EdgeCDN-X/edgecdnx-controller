@@ -364,6 +364,23 @@ func main() {
 		}
 	}
 
+	if role == RoleController {
+		if err = (&controller.SecretReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TLSSecret")
+			os.Exit(1)
+		}
+	}
+
 	if role == RoleCacheController {
 		if err = (&controller.ServiceCacheReconciler{
 			Client:             mgr.GetClient(),
