@@ -53,6 +53,8 @@ type NodeSpec struct {
 	// Caches is the list of caches that are associated with this node.
 	// +listType=set
 	Caches []string `json:"caches,omitempty"`
+	// MaintenanceMode indicates if the node is in maintenance mode.
+	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 }
 
 // LocationSpec defines the desired state of Location.
@@ -64,6 +66,8 @@ type LocationSpec struct {
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// Specifies the geo lookup configuration for this location.
 	GeoLookup GeoLookupSpec `json:"geoLookup"`
+	// Sets the Location to Maintenance Mode.
+	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 }
 
 // LocationStatus defines the observed state of Location.

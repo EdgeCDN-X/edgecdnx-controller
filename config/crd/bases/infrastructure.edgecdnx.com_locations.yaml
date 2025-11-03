@@ -77,6 +77,9 @@ spec:
                     minimum: 0
                     type: integer
                 type: object
+              maintenanceMode:
+                description: Sets the Location to Maintenance Mode.
+                type: boolean
               nodes:
                 description: Specifies the list of nodes that are part of this location.
                 items:
@@ -94,6 +97,10 @@ spec:
                     ipv6:
                       description: Ipv6 is the IPv6 address of the node.
                       type: string
+                    maintenanceMode:
+                      description: MaintenanceMode indicates if the node is in maintenance
+                        mode.
+                      type: boolean
                     name:
                       description: Name is the name of the node.
                       type: string
