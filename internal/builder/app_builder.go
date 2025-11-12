@@ -10,6 +10,12 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	ResourceTypeLabel        = "edgecdnx.com/resource-type"
+	MonitoringTLSSecretValue = "monitoring-tls"
+	AnalyticsTLSSecretValue  = "analytics-tls"
+)
+
 type IAppBuilder interface {
 	WithHelmChartParams(params ChartParams)
 	WithHelmValues(any)
@@ -99,7 +105,20 @@ func (b *ThrowableAppBuilder) Build() (argoprojv1alpha1.Application, string, err
 
 func AppBuilderFactory(builderType string, name string, namespace string, destionation string, throwerOptions ThrowerOptions) (IAppBuilder, error) {
 	switch builderType {
-	case "MonitoringTLSSecret":
+	case MonitoringTLSSecretValue:
+		b := NewThrowableAppBuilder(name)
+		// Reuse for apps too
+		b.WithProject(throwerOptions.ApplicationSetProject)
+		b.WithHelmChartParams(ChartParams{
+			ChartRepository: throwerOptions.ThrowerChartRepository,
+			ChartName:       throwerOptions.ThrowerChartName,
+			ChartVersion:    throwerOptions.ThrowerChartVersion,
+			ReleaseName:     name,
+		})
+		b.WithDestination(destionation, namespace)
+		b.WithAppMeta(name, namespace)
+		return b, nil
+	case AnalyticsTLSSecretValue:
 		b := NewThrowableAppBuilder(name)
 		// Reuse for apps too
 		b.WithProject(throwerOptions.ApplicationSetProject)

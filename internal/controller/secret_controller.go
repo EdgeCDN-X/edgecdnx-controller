@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 
@@ -43,6 +44,7 @@ type SecretReconciler struct {
 const (
 	ResourceTypeLabel        = "edgecdnx.com/resource-type"
 	MonitoringTLSSecretValue = "monitoring-tls"
+	AnalyticsTLSSecretValue  = "analytics-tls"
 )
 
 func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -60,8 +62,8 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if labelValue == MonitoringTLSSecretValue {
-		log.Info("Reconciling monitoring TLS Secret", "name", secret.Name, "namespace", secret.Namespace)
+	if labelValue == MonitoringTLSSecretValue || labelValue == AnalyticsTLSSecretValue {
+		log.Info(fmt.Sprintf("Reconciling %s TLS Secret", labelValue), "name", secret.Name, "namespace", secret.Namespace)
 
 		targetValue, ok := secret.Annotations["target"]
 		if !ok {
@@ -80,7 +82,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, nil
 		}
 
-		throwerAppBuilder, err := builder.AppBuilderFactory("MonitoringTLSSecret", secret.Name, secret.Namespace, targetValue, r.ThrowerOptions)
+		throwerAppBuilder, err := builder.AppBuilderFactory(labelValue, secret.Name, secret.Namespace, targetValue, r.ThrowerOptions)
 		if err != nil {
 			log.Error(err, "unable to create thrower builder")
 			return ctrl.Result{}, err
@@ -111,17 +113,17 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		err = r.Get(ctx, types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}, currApp)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				log.Info("Creating Application for monitoring TLS Secret", "name", secret.Name)
+				log.Info("Creating Application for TLS Secret", "name", secret.Name)
 
 				err = controllerutil.SetControllerReference(secret, &desiredApp, r.Scheme)
 				if err != nil {
-					log.Error(err, "unable to set owner reference on Application for monitoring TLS Secret", "Secret", secret.Name)
+					log.Error(err, "unable to set owner reference on Application for TLS Secret", "Secret", secret.Name)
 					return ctrl.Result{}, err
 				}
 				return ctrl.Result{}, r.Create(ctx, &desiredApp)
 			}
 
-			log.Error(err, "unable to fetch Application for monitoring TLS Secret")
+			log.Error(err, "unable to fetch Application for TLS Secret")
 			return ctrl.Result{}, err
 		} else {
 			if !currApp.DeletionTimestamp.IsZero() {
@@ -131,7 +133,7 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 			currAppHash, ok := currApp.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppHash != hash {
-				log.Info("Updating Application for monitoring TLS Secret", "name", secret.Name)
+				log.Info("Updating Application for TLS Secret", "name", secret.Name)
 				currApp.Spec = desiredApp.Spec
 				currApp.ObjectMeta.Annotations = desiredApp.ObjectMeta.Annotations
 				return ctrl.Result{}, r.Update(ctx, currApp)
