@@ -299,6 +299,126 @@ var _ = Describe("Location Reconciler", func() {
 		})
 	})
 
+	Context("When Updating a Location resource with NodeGroup", func() {
+		It("Should set status to Healthy, and Update the ApplicationSet", func() {
+			By("Updating a Location Resource")
+
+			existingLocation := &infrastructurev1alpha1.Location{}
+			Expect(k8sClient.Get(ctx, locationLookupKey, existingLocation)).To(Succeed())
+
+			existingLocation.Spec = infrastructurev1alpha1.LocationSpec{
+				FallbackLocations: []string{"fallback3", "fallback4"},
+				Nodes:             []infrastructurev1alpha1.NodeSpec{},
+				NodeGroups: []infrastructurev1alpha1.NodeGroupSpec{
+					{
+						Name: "group1",
+						Nodes: []infrastructurev1alpha1.NodeSpec{
+							{
+								Name:   "node1",
+								Ipv4:   "10.0.0.2",
+								Ipv6:   "2001:db8::2",
+								Caches: []string{},
+							},
+						},
+						CacheConfig: infrastructurev1alpha1.CacheConfigSpec{
+							Name:     "ssd",
+							Path:     "/var/cache/ssd",
+							KeysZone: "100m",
+							Inactive: "10080m",
+							MaxSize:  "4096m",
+						},
+					},
+				},
+				GeoLookup: infrastructurev1alpha1.GeoLookupSpec{
+					Weight: 11,
+					Attributes: map[string]infrastructurev1alpha1.GeoLookupAttributeSpec{
+						"country": {
+							Weight: 6,
+							Values: []infrastructurev1alpha1.GeoLookupAttributeValuesSpec{
+								{Value: "US", Weight: 4},
+								{Value: "CA", Weight: 3},
+							},
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Update(ctx, existingLocation)).To(Succeed())
+
+			updatedLocation := &infrastructurev1alpha1.Location{}
+
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, locationLookupKey, updatedLocation)).To(Succeed())
+				g.Expect(updatedLocation.Status.Status).To(Equal("Healthy"))
+			}, timeout, interval).Should(Succeed())
+
+			// Run asserts
+			By("Checking that the Location spec was updated correctly")
+			Expect(updatedLocation.Spec.FallbackLocations).To(Equal([]string{"fallback3", "fallback4"}))
+			Expect(updatedLocation.Spec.Nodes).To(HaveLen(0))
+			Expect(updatedLocation.Spec.NodeGroups).To(HaveLen(1))
+			Expect(updatedLocation.Spec.NodeGroups[0].Name).To(Equal("group1"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Nodes).To(HaveLen(1))
+			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Name).To(Equal("node1"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Ipv4).To(Equal("10.0.0.2"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Ipv6).To(Equal("2001:db8::2"))
+			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Name).To(Equal("ssd"))
+			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Path).To(Equal("/var/cache/ssd"))
+			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.KeysZone).To(Equal("100m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Inactive).To(Equal("10080m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.MaxSize).To(Equal("4096m"))
+			Expect(updatedLocation.Spec.GeoLookup.Weight).To(Equal(11))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes).To(HaveKey("country"))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Weight).To(Equal(6))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Values).To(HaveLen(2))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Values[0].Value).To(Equal("US"))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Values[0].Weight).To(Equal(4))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Values[1].Value).To(Equal("CA"))
+			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Values[1].Weight).To(Equal(3))
+
+			By("Checking that the ApplicationSet has been updated with the correct values")
+			applicationSetLookupKey := types.NamespacedName{Name: LocationName, Namespace: Namespace}
+			updatedApplicationSet := &argoprojv1alpha1.ApplicationSet{}
+
+			// Build resource for throwing
+			resource := &infrastructurev1alpha1.Location{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "infrastructure.edgecdnx.com/v1alpha1",
+					Kind:       "Location",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: updatedLocation.Name,
+				},
+				Spec: updatedLocation.Spec,
+			}
+
+			appsetBuilder, err := builder.AppsetBuilderFactory("Location", updatedLocation.Name, updatedLocation.Namespace, builder.ThrowerOptions{
+				ThrowerChartName:       ThrowerChartName,
+				ThrowerChartVersion:    ThrowerChartVersion,
+				ThrowerChartRepository: ThrowerChartRepository,
+				TargetNamespace:        InfrastructureTargetNamespace,
+				ApplicationSetProject:  InfrastructureApplicationSetProject,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			locationHelmValues := struct {
+				Resources []any `json:"resources"`
+			}{
+				Resources: []any{resource},
+			}
+			appsetBuilder.WithHelmValues(locationHelmValues)
+			_, hash, _ := appsetBuilder.Build()
+
+			By("Verifying that the ApplicationSet has the correct updated hash annotation")
+
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, applicationSetLookupKey, updatedApplicationSet)).To(Succeed())
+				updatedApplicationSetHash := updatedApplicationSet.Annotations[builder.ValuesHashAnnotation]
+				g.Expect(updatedApplicationSetHash).To(Equal(hash))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 	Context("When Appset is deleted, it is Recreated", func() {
 
 		It("Should Recreate the ApplicationSet", func() {

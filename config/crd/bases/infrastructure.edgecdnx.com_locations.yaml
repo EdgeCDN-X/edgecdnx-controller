@@ -85,17 +85,34 @@ spec:
                   can be used.
                 items:
                   properties:
-                    inactive:
-                      description: Inactive is the inactive time for the cache.
-                      type: string
-                    keysZone:
-                      description: KeysZone is the zone for the cache keys.
-                      type: string
-                    maxSize:
-                      description: MaxSize is the maximum size for the cache.
-                      type: string
+                    cacheConfig:
+                      description: CacheConfig is the cache configuration for this
+                        node group.
+                      properties:
+                        inactive:
+                          description: Inactive is the inactive time for the cache.
+                          type: string
+                        keysZone:
+                          description: KeysZone is the zone for the cache keys.
+                          type: string
+                        maxSize:
+                          description: MaxSize is the maximum size for the cache.
+                          type: string
+                        name:
+                          description: Name is the name of the cache.
+                          type: string
+                        path:
+                          description: Path is the path to the cache.
+                          type: string
+                      required:
+                      - inactive
+                      - keysZone
+                      - maxSize
+                      - name
+                      - path
+                      type: object
                     name:
-                      description: Name is the name of the cache.
+                      description: Name is the name of the node group.
                       type: string
                     nodes:
                       description: Nodes is the list of nodes that are part of this
@@ -123,20 +140,21 @@ spec:
                           name:
                             description: Name is the name of the node.
                             type: string
+                        required:
+                        - name
                         type: object
                       type: array
-                    path:
-                      description: Path is the path to the cache.
-                      type: string
+                      x-kubernetes-list-map-keys:
+                      - name
+                      x-kubernetes-list-type: map
                   required:
-                  - inactive
-                  - keysZone
-                  - maxSize
+                  - cacheConfig
                   - name
-                  - path
                   type: object
                 type: array
-                x-kubernetes-list-type: set
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               nodes:
                 description: Specifies the list of nodes that are part of this location.
                 items:
@@ -161,6 +179,8 @@ spec:
                     name:
                       description: Name is the name of the node.
                       type: string
+                  required:
+                  - name
                   type: object
                 type: array
             required:

@@ -45,7 +45,7 @@ type GeoLookupSpec struct {
 
 type NodeSpec struct {
 	// Name is the name of the node.
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 	// Ipv4 is the IPv4 address of the node.
 	Ipv4 string `json:"ipv4,omitempty"`
 	// Ipv6 is the IPv6 address of the node.
@@ -72,11 +72,13 @@ type CacheConfigSpec struct {
 
 type NodeGroupSpec struct {
 	// Name is the name of the node group.
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 	// Nodes is the list of nodes that are part of this node group. If used in this context Caches are ignored in NodeSpec.
+	// +listType=map
+	// +listMapKey=name
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// CacheConfig is the cache configuration for this node group.
-	CacheConfig CacheConfigSpec `json:",omitempty"`
+	CacheConfig CacheConfigSpec `json:"cacheConfig"`
 }
 
 // LocationSpec defines the desired state of Location.
@@ -93,7 +95,8 @@ type LocationSpec struct {
 	// Sets the Location to Maintenance Mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 	// Introduces NodeGroups for location. Either Nodes or NodeGroups can be used.
-	// +listType=set
+	// +listType=map
+	// +listMapKey=name
 	NodeGroups []NodeGroupSpec `json:"nodeGroups,omitempty"`
 }
 
