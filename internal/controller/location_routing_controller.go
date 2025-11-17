@@ -71,9 +71,9 @@ func (r *LocationRoutingReconciler) getConsulNodeInstance(location *infrastructu
 			},
 		},
 		Meta: map[string]string{
-			"external-node":  "true",
-			"external-probe": "true",
-			"location":       location.Name,
+			"external-node": "true",
+			// "external-probe": "true",
+			"location": location.Name,
 		},
 	}
 
