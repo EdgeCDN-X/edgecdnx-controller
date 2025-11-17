@@ -57,8 +57,32 @@ type NodeSpec struct {
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 }
 
+type CacheConfigSpec struct {
+	// Name is the name of the cache.
+	Name string `json:"name"`
+	// Path is the path to the cache.
+	Path string `json:"path"`
+	// KeysZone is the zone for the cache keys.
+	KeysZone string `json:"keysZone"`
+	// Inactive is the inactive time for the cache.
+	Inactive string `json:"inactive"`
+	// MaxSize is the maximum size for the cache.
+	MaxSize string `json:"maxSize"`
+}
+
+type NodeGroupSpec struct {
+	// Name is the name of the node group.
+	Name string `json:"name,omitempty"`
+	// Nodes is the list of nodes that are part of this node group. If used in this context Caches are ignored in NodeSpec.
+	Nodes []NodeSpec `json:"nodes,omitempty"`
+	// CacheConfig is the cache configuration for this node group.
+	CacheConfig CacheConfigSpec `json:",omitempty"`
+}
+
 // LocationSpec defines the desired state of Location.
+// +kubebuilder:validation:ExactlyOneOf=ndoes,nodeGroups
 type LocationSpec struct {
+
 	// Specifies the list of locations that this location can fall back to.
 	// +listType=set
 	FallbackLocations []string `json:"fallbackLocations,omitempty"`
@@ -68,6 +92,9 @@ type LocationSpec struct {
 	GeoLookup GeoLookupSpec `json:"geoLookup"`
 	// Sets the Location to Maintenance Mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
+	// Introduces NodeGroups for location. Either Nodes or NodeGroups can be used.
+	// +listType=set
+	NodeGroups []NodeGroupSpec `json:"nodeGroups,omitempty"`
 }
 
 // LocationStatus defines the observed state of Location.

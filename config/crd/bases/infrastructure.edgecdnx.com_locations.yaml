@@ -80,6 +80,63 @@ spec:
               maintenanceMode:
                 description: Sets the Location to Maintenance Mode.
                 type: boolean
+              nodeGroups:
+                description: Introduces NodeGroups for location. Either Nodes or NodeGroups
+                  can be used.
+                items:
+                  properties:
+                    inactive:
+                      description: Inactive is the inactive time for the cache.
+                      type: string
+                    keysZone:
+                      description: KeysZone is the zone for the cache keys.
+                      type: string
+                    maxSize:
+                      description: MaxSize is the maximum size for the cache.
+                      type: string
+                    name:
+                      description: Name is the name of the cache.
+                      type: string
+                    nodes:
+                      description: Nodes is the list of nodes that are part of this
+                        node group. If used in this context Caches are ignored in
+                        NodeSpec.
+                      items:
+                        properties:
+                          caches:
+                            description: Caches is the list of caches that are associated
+                              with this node.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                          ipv4:
+                            description: Ipv4 is the IPv4 address of the node.
+                            type: string
+                          ipv6:
+                            description: Ipv6 is the IPv6 address of the node.
+                            type: string
+                          maintenanceMode:
+                            description: MaintenanceMode indicates if the node is
+                              in maintenance mode.
+                            type: boolean
+                          name:
+                            description: Name is the name of the node.
+                            type: string
+                        type: object
+                      type: array
+                    path:
+                      description: Path is the path to the cache.
+                      type: string
+                  required:
+                  - inactive
+                  - keysZone
+                  - maxSize
+                  - name
+                  - path
+                  type: object
+                type: array
+                x-kubernetes-list-type: set
               nodes:
                 description: Specifies the list of nodes that are part of this location.
                 items:
