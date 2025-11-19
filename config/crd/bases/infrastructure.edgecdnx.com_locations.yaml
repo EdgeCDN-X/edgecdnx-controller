@@ -99,7 +99,9 @@ spec:
                           description: MaxSize is the maximum size for the cache.
                           type: string
                         name:
-                          description: Name is the name of the cache.
+                          description: |-
+                            Name is the name of the cache.
+                            Deprecated. Cache Name corresponds to nodeGroup Name
                           type: string
                         path:
                           description: Path is the path to the cache.
@@ -108,12 +110,16 @@ spec:
                       - inactive
                       - keysZone
                       - maxSize
-                      - name
                       - path
                       type: object
                     name:
                       description: Name is the name of the node group.
                       type: string
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      description: NodeSelector to apply to the daemonset
+                      type: object
                     nodes:
                       description: Nodes is the list of nodes that are part of this
                         node group. If used in this context Caches are ignored in

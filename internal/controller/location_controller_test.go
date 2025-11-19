@@ -327,6 +327,9 @@ var _ = Describe("Location Reconciler", func() {
 							Inactive: "10080m",
 							MaxSize:  "4096m",
 						},
+						NodeSelector: map[string]string{
+							"edgecdnx.com/cache-type": "ssd",
+						},
 					},
 				},
 				GeoLookup: infrastructurev1alpha1.GeoLookupSpec{
@@ -355,7 +358,7 @@ var _ = Describe("Location Reconciler", func() {
 			// Run asserts
 			By("Checking that the Location spec was updated correctly")
 			Expect(updatedLocation.Spec.FallbackLocations).To(Equal([]string{"fallback3", "fallback4"}))
-			Expect(updatedLocation.Spec.Nodes).To(HaveLen(0))
+			Expect(updatedLocation.Spec.Nodes).To(BeEmpty())
 			Expect(updatedLocation.Spec.NodeGroups).To(HaveLen(1))
 			Expect(updatedLocation.Spec.NodeGroups[0].Name).To(Equal("group1"))
 			Expect(updatedLocation.Spec.NodeGroups[0].Nodes).To(HaveLen(1))
@@ -367,6 +370,7 @@ var _ = Describe("Location Reconciler", func() {
 			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.KeysZone).To(Equal("100m"))
 			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Inactive).To(Equal("10080m"))
 			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.MaxSize).To(Equal("4096m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].NodeSelector).To(HaveKeyWithValue("edgecdnx.com/cache-type", "ssd"))
 			Expect(updatedLocation.Spec.GeoLookup.Weight).To(Equal(11))
 			Expect(updatedLocation.Spec.GeoLookup.Attributes).To(HaveKey("country"))
 			Expect(updatedLocation.Spec.GeoLookup.Attributes["country"].Weight).To(Equal(6))

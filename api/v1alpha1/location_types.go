@@ -59,7 +59,8 @@ type NodeSpec struct {
 
 type CacheConfigSpec struct {
 	// Name is the name of the cache.
-	Name string `json:"name"`
+	// Deprecated. Cache Name corresponds to nodeGroup Name
+	Name string `json:"name,omitempty"`
 	// Path is the path to the cache.
 	Path string `json:"path"`
 	// KeysZone is the zone for the cache keys.
@@ -79,6 +80,9 @@ type NodeGroupSpec struct {
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// CacheConfig is the cache configuration for this node group.
 	CacheConfig CacheConfigSpec `json:"cacheConfig"`
+
+	// NodeSelector to apply to the daemonset
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // LocationSpec defines the desired state of Location.
