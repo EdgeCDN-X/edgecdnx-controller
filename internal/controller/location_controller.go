@@ -61,7 +61,7 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	if location.Status != (infrastructurev1alpha1.LocationStatus{}) {
+	if location.Status.Status == HealthStatusProgressing || location.Status.Status == HealthStatusHealthy {
 		// Strip off resource from Namespace. Applicationset Will take care of it.
 		resource := &infrastructurev1alpha1.Location{
 			TypeMeta: location.TypeMeta,
@@ -134,7 +134,8 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	} else {
 		// Update status to healthy
 		location.Status = infrastructurev1alpha1.LocationStatus{
-			Status: HealthStatusProgressing,
+			Status:     HealthStatusProgressing,
+			NodeStatus: make(map[string]infrastructurev1alpha1.NodeInstanceStatus),
 		}
 		return ctrl.Result{}, r.Status().Update(ctx, location)
 	}

@@ -104,10 +104,33 @@ type LocationSpec struct {
 	NodeGroups []NodeGroupSpec `json:"nodeGroups,omitempty"`
 }
 
+type NodeConditionType string
+
+const (
+	IPV4HealthCheckSuccessful NodeConditionType = "IPV4HealthCheckSuccessful"
+	IPV6HealthCheckSuccessful NodeConditionType = "IPV6HealthCheckSuccessful"
+)
+
+type NodeCondition struct {
+	// Condition Type
+	Type NodeConditionType `json:"type"`
+	// Status
+	Status             bool        `json:"status"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	Reason             string      `json:"reason,omitempty"`
+	// Observed generation corresponds to the Location generation when the condition was last updated.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+}
+
+type NodeInstanceStatus struct {
+	Conditions []NodeCondition `json:"conditions"`
+}
+
 // LocationStatus defines the observed state of Location.
 type LocationStatus struct {
 	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
-	Status string `json:"status,omitempty"`
+	Status     string                        `json:"status,omitempty"`
+	NodeStatus map[string]NodeInstanceStatus `json:"nodeStatus,omitempty"`
 }
 
 // +kubebuilder:object:root=true

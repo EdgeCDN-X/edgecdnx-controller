@@ -195,6 +195,37 @@ spec:
           status:
             description: LocationStatus defines the observed state of Location.
             properties:
+              nodeStatus:
+                additionalProperties:
+                  properties:
+                    conditions:
+                      items:
+                        properties:
+                          lastTransitionTime:
+                            format: date-time
+                            type: string
+                          observedGeneration:
+                            description: Observed generation corresponds to the Location
+                              generation when the condition was last updated.
+                            format: int64
+                            type: integer
+                          reason:
+                            type: string
+                          status:
+                            description: Status
+                            type: boolean
+                          type:
+                            description: Condition Type
+                            type: string
+                        required:
+                        - status
+                        - type
+                        type: object
+                      type: array
+                  required:
+                  - conditions
+                  type: object
+                type: object
               status:
                 enum:
                 - Healthy

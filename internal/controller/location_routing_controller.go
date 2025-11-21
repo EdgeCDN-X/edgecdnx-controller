@@ -147,7 +147,7 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
-	if location.Status != (infrastructurev1alpha1.LocationStatus{}) {
+	if location.Status.Status == HealthStatusHealthy || location.Status.Status == HealthStatusProgressing {
 		for node := range location.Spec.Nodes {
 			nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", location.Spec.Nodes[node].Name, location.Name)
 			consulNode, _, err := r.consulClient.Catalog().Node(nodeName, &consulapi.QueryOptions{})
@@ -263,7 +263,8 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, r.Status().Update(ctx, location)
 	} else {
 		location.Status = infrastructurev1alpha1.LocationStatus{
-			Status: HealthStatusProgressing,
+			Status:     HealthStatusProgressing,
+			NodeStatus: make(map[string]infrastructurev1alpha1.NodeInstanceStatus),
 		}
 		return ctrl.Result{}, r.Status().Update(ctx, location)
 	}
