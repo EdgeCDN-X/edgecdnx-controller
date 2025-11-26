@@ -5,19 +5,15 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    name: Run on Ubuntu
+  golangci:
+    name: lint
     runs-on: ubuntu-latest
     steps:
-      - name: Clone the code
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-
-      - name: Run linter
-        uses: golangci/golangci-lint-action@v6
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64.8
+          version: v2.6
