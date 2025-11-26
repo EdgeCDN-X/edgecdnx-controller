@@ -94,9 +94,6 @@ func main() {
 	// Role
 	var role string
 
-	// Consul Endpoint - no TLS or auth support for now
-	var consulEndpoint string
-
 	// Secure URLs
 	var secureUrlsEndpoint string
 
@@ -122,9 +119,6 @@ func main() {
 	flag.StringVar(&role, "role", "controller",
 		"The role of this instance. Can be 'controller', runs on control plane,"+
 			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
-
-	flag.StringVar(&consulEndpoint, "consul-endpoint",
-		"http://edgecdnx-consul-consul-server:8500", "Default Consul Endpoint")
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -394,9 +388,8 @@ func main() {
 
 	if role == RoleRouter {
 		if err = (&controller.LocationRoutingReconciler{
-			Client:         mgr.GetClient(),
-			Scheme:         mgr.GetScheme(),
-			ConsulEndpoint: consulEndpoint,
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "LocationRouting")
 			os.Exit(1)

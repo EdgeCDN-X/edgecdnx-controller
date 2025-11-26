@@ -86,7 +86,6 @@ type NodeGroupSpec struct {
 }
 
 // LocationSpec defines the desired state of Location.
-// +kubebuilder:validation:ExactlyOneOf=ndoes,nodeGroups
 type LocationSpec struct {
 
 	// Specifies the list of locations that this location can fall back to.
@@ -134,10 +133,13 @@ type LocationStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:object:generate=true
 // +kubebuilder:subresource:status
+// +kubebuilder:ac:generate=true
 
 // Location is the Schema for the locations API.
 type Location struct {
+	// +kubebuilder:ac:generate=true
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
@@ -146,7 +148,7 @@ type Location struct {
 }
 
 // +kubebuilder:object:root=true
-
+// +kubebuilder:object:generate=true
 // LocationList contains a list of Location.
 type LocationList struct {
 	metav1.TypeMeta `json:",inline"`

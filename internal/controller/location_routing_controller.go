@@ -18,71 +18,18 @@ package controller
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/json"
-	"fmt"
-	"time"
 
-	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	consulapi "github.com/hashicorp/consul/api"
 )
 
 // LocationRoutingReconciler reconciles a Location object
 type LocationRoutingReconciler struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	ConsulEndpoint string
-	consulClient   *consulapi.Client
-}
-
-// TODO rewrite this component so it is not dependent on Consul and Consul ESM.
-
-func (r *LocationRoutingReconciler) getConsulNodeInstance(location *infrastructurev1alpha1.Location, idx int) (consulapi.CatalogRegistration, map[string]string, string, error) {
-
-	nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", location.Spec.Nodes[idx].Name, location.Name)
-
-	marshable := struct {
-		Spec consulapi.CatalogRegistration `json:"spec"`
-		Meta map[string]string             `json:"meta"`
-	}{
-		Spec: consulapi.CatalogRegistration{
-			Node:    nodeName,
-			Address: location.Spec.Nodes[idx].Ipv4,
-			Service: &consulapi.AgentService{
-				ID:      fmt.Sprintf("cache-%s", nodeName),
-				Service: fmt.Sprintf("cache-%s", nodeName),
-				Address: location.Spec.Nodes[idx].Ipv4,
-				Port:    80,
-			},
-			Check: &consulapi.AgentCheck{
-				CheckID: fmt.Sprintf("service:cache-%s", nodeName),
-				Definition: consulapi.HealthCheckDefinition{
-					HTTP:             fmt.Sprintf("http://%s/healthz", location.Spec.Nodes[idx].Ipv4),
-					IntervalDuration: 10 * time.Second,
-				},
-			},
-		},
-		Meta: map[string]string{
-			"external-node": "true",
-			// "external-probe": "true",
-			"location": location.Name,
-		},
-	}
-
-	hashable, err := json.Marshal(marshable)
-	if err != nil {
-		return consulapi.CatalogRegistration{}, nil, "", fmt.Errorf("failed to marshal consul node instance: %w", err)
-	}
-	return marshable.Spec, marshable.Meta, fmt.Sprintf("%x", md5.Sum(hashable)), nil
-
+	Scheme *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=locations,verbs=get;list;watch;create;update;patch;delete
@@ -99,8 +46,6 @@ func (r *LocationRoutingReconciler) getConsulNodeInstance(location *infrastructu
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-
 	location := &infrastructurev1alpha1.Location{}
 
 	// Object not found
@@ -108,160 +53,18 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	finalizerName := "edgecdnx.com/location-finalizer"
-
-	if location.ObjectMeta.DeletionTimestamp.IsZero() {
-		// Not being deleted, ensure finalizer is present
-		if !controllerutil.ContainsFinalizer(location, finalizerName) {
-			log.Info("Adding finalizer to Location")
-			controllerutil.AddFinalizer(location, finalizerName)
-			return ctrl.Result{}, r.Update(ctx, location)
-		}
-	} else {
-		// Being deleted, handle finalizer logic
-		if controllerutil.ContainsFinalizer(location, finalizerName) {
-			for node := range location.Spec.Nodes {
-				nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", location.Spec.Nodes[node].Name, location.Name)
-				log.Info(fmt.Sprintf("Removing node from Consul - %s", nodeName), "Node", nodeName)
-				_, err := r.consulClient.Catalog().Deregister(&consulapi.CatalogDeregistration{
-					Node: nodeName,
-				}, &consulapi.WriteOptions{})
-				if err != nil {
-					log.Error(err, "Failed to deregister node in Consul", "Node", nodeName)
-					return ctrl.Result{}, err
-				}
-				log.Info("Node removed from Consul", "Node", nodeName)
-			}
-
-			// ArgoCD is likely modifying the object, so we need to re-fetch it
-			if err := r.Get(ctx, req.NamespacedName, location); err != nil {
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-
-			removed := controllerutil.RemoveFinalizer(location, finalizerName)
-			if removed {
-				log.Info("Removing finalizer from Location")
-				return ctrl.Result{}, r.Update(ctx, location)
-			}
-		}
+	switch location.Status.Status {
+	case HealthStatusHealthy:
+		// No action needed
 		return ctrl.Result{}, nil
-	}
-
-	if location.Status.Status == HealthStatusHealthy || location.Status.Status == HealthStatusProgressing {
-		for node := range location.Spec.Nodes {
-			nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", location.Spec.Nodes[node].Name, location.Name)
-			consulNode, _, err := r.consulClient.Catalog().Node(nodeName, &consulapi.QueryOptions{})
-
-			if err != nil {
-				log.Error(err, "Failed to get node from Consul")
-				return ctrl.Result{}, err
-			}
-
-			if consulNode == nil {
-				log.Info(fmt.Sprintf("Node %s not found in Consul. Registering", nodeName))
-
-				registration, meta, hash, err := r.getConsulNodeInstance(location, node)
-				if err != nil {
-					log.Error(err, "Failed to get Consul node instance")
-					return ctrl.Result{}, err
-				}
-
-				uid, err := uuid.NewUUID()
-				if err != nil {
-					log.Error(err, "Failed to generate UUID for Consul node registration")
-					return ctrl.Result{}, err
-				}
-
-				registration.ID = uid.String()
-				registration.NodeMeta = meta
-				registration.NodeMeta[builder.ValuesHashAnnotation] = hash
-
-				_, err = r.consulClient.Catalog().Register(&registration, &consulapi.WriteOptions{})
-
-				if err != nil {
-					log.Error(err, "Failed to register node in Consul")
-					return ctrl.Result{}, err
-				}
-			} else {
-
-				registration, meta, hash, err := r.getConsulNodeInstance(location, node)
-
-				if err != nil {
-					log.Error(err, "Failed to get Consul node instance")
-					return ctrl.Result{}, err
-				}
-
-				curHash, ok := consulNode.Node.Meta[builder.ValuesHashAnnotation]
-
-				if !ok || curHash != hash {
-					_, err := r.consulClient.Catalog().Deregister(&consulapi.CatalogDeregistration{
-						Node: nodeName,
-					}, &consulapi.WriteOptions{})
-
-					if err != nil {
-						log.Error(err, "Failed to deregister node in Consul")
-						return ctrl.Result{}, err
-					}
-
-					log.Info(fmt.Sprintf("Node %s found in Consul but hash mismatch. Deregistering and re-registering", nodeName))
-
-					uid, err := uuid.NewUUID()
-					if err != nil {
-						log.Error(err, "Failed to generate UUID for Consul node registration")
-						return ctrl.Result{}, err
-					}
-
-					registration.ID = uid.String()
-					registration.NodeMeta = meta
-					registration.NodeMeta[builder.ValuesHashAnnotation] = hash
-
-					_, err = r.consulClient.Catalog().Register(&registration, &consulapi.WriteOptions{})
-
-					if err != nil {
-						log.Error(err, "Failed to register node in Consul")
-						return ctrl.Result{}, err
-					}
-				}
-			}
-		}
-
-		consulNodes, _, err := r.consulClient.Catalog().Nodes(&consulapi.QueryOptions{
-			Filter: fmt.Sprintf("Meta.location == \"%s\"", location.Name),
-		})
-
-		if err != nil {
-			log.Error(err, "Failed to get nodes from Consul")
-			return ctrl.Result{}, err
-		}
-
-		for _, consulNode := range consulNodes {
-			nodeFound := false
-			for _, node := range location.Spec.Nodes {
-				nodeName := fmt.Sprintf("%s.%s.edgecdnx.com", node.Name, location.Name)
-				if consulNode.Node == nodeName {
-					nodeFound = true
-					break
-				}
-			}
-
-			if !nodeFound {
-				log.Info("Node found in Consul but not in Location spec. Deregistering", "Node", consulNode.Node)
-				_, err := r.consulClient.Catalog().Deregister(&consulapi.CatalogDeregistration{
-					Node: consulNode.Node,
-				}, &consulapi.WriteOptions{})
-				if err != nil {
-					log.Error(err, "Failed to deregister node in Consul", "Node", consulNode.Node)
-					return ctrl.Result{}, err
-				}
-			}
-		}
-
+	case HealthStatusProgressing:
+		// Update to Progressing
 		location.Status = infrastructurev1alpha1.LocationStatus{
-			Status: HealthStatusHealthy,
+			Status:     HealthStatusHealthy,
+			NodeStatus: location.Status.NodeStatus,
 		}
-
 		return ctrl.Result{}, r.Status().Update(ctx, location)
-	} else {
+	default:
 		location.Status = infrastructurev1alpha1.LocationStatus{
 			Status:     HealthStatusProgressing,
 			NodeStatus: make(map[string]infrastructurev1alpha1.NodeInstanceStatus),
@@ -272,16 +75,6 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *LocationRoutingReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	config := consulapi.DefaultConfig()
-	config.Address = r.ConsulEndpoint
-	consul, err := consulapi.NewClient(config)
-	if err != nil {
-		logf.Log.Error(err, "Failed to create Consul client")
-		return err
-	}
-
-	r.consulClient = consul
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Location{}).
 		Complete(r)

@@ -130,7 +130,7 @@ type ServiceStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-
+// +kubebuilder:object:generate=true
 // Service is the Schema for the services API.
 type Service struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -141,7 +141,7 @@ type Service struct {
 }
 
 // +kubebuilder:object:root=true
-
+// +kubebuilder:object:generate=true
 // ServiceList contains a list of Service.
 type ServiceList struct {
 	metav1.TypeMeta `json:",inline"`

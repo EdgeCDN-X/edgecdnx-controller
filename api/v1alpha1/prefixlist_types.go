@@ -69,6 +69,7 @@ type PrefixListStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:object:generate=true
 
 // +kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.source"
 // +kubebuilder:printcolumn:name="Destination",type="string",JSONPath=".spec.destination"
@@ -84,7 +85,7 @@ type PrefixList struct {
 }
 
 // +kubebuilder:object:root=true
-
+// +kubebuilder:object:generate=true
 // PrefixListList contains a list of PrefixList.
 type PrefixListList struct {
 	metav1.TypeMeta `json:",inline"`

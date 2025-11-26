@@ -154,9 +154,8 @@ var _ = BeforeSuite(func() {
 
 	if os.Getenv("ROLE") == "router" {
 		locRoutingReconciler := &LocationRoutingReconciler{
-			Client:         k8sManager.GetClient(),
-			Scheme:         k8sManager.GetScheme(),
-			ConsulEndpoint: "http://localhost:8500",
+			Client: k8sManager.GetClient(),
+			Scheme: k8sManager.GetScheme(),
 		}
 		err = locRoutingReconciler.SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
