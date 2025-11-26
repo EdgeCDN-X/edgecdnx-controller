@@ -113,11 +113,11 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Location", "old-hash", currAppsetHash, "new-hash", hash)
 				currAppset.Spec = desiredAppset.Spec
-				currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+				currAppset.Annotations = desiredAppset.Annotations
 				return ctrl.Result{}, r.Update(ctx, currAppset)
 			}
 		}

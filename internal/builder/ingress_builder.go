@@ -32,17 +32,17 @@ type CacheIngressBuilderConfig struct {
 }
 
 func (b *CacheIngressBuilder) WithLabel(key string, value string) {
-	if b.ingress.ObjectMeta.Labels == nil {
-		b.ingress.ObjectMeta.Labels = map[string]string{}
+	if b.ingress.Labels == nil {
+		b.ingress.Labels = map[string]string{}
 	}
-	b.ingress.ObjectMeta.Labels[key] = value
+	b.ingress.Labels[key] = value
 }
 
 func (b *CacheIngressBuilder) WithAnnotation(key string, value string) {
-	if b.ingress.ObjectMeta.Annotations == nil {
-		b.ingress.ObjectMeta.Annotations = map[string]string{}
+	if b.ingress.Annotations == nil {
+		b.ingress.Annotations = map[string]string{}
 	}
-	b.ingress.ObjectMeta.Annotations[key] = value
+	b.ingress.Annotations[key] = value
 }
 
 func (b *CacheIngressBuilder) WithIngressClass(ingressClass string) {
@@ -72,7 +72,7 @@ func (b *CacheIngressBuilder) WithRules(rules []networkingv1.IngressRule) {
 
 func (b *CacheIngressBuilder) WithService(service infrastructurev1alpha1.Service) {
 	pathTypeImplementationSpecific := networkingv1.PathTypeImplementationSpecific
-	serviceName := strings.Replace(service.Name, ".", "-", -1)
+	serviceName := strings.ReplaceAll(service.Name, ".", "-")
 
 	configSnippetTemplate := `
 	{{- if and (eq .OriginType "static") (eq (index .StaticOrigins 0).Scheme "Https") }}

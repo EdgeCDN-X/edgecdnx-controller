@@ -104,11 +104,11 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 			return ctrl.Result{}, nil
 		}
 
-		currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+		currAppsetHash, ok := currAppset.Annotations[builder.ValuesHashAnnotation]
 		if !ok || currAppsetHash != hash {
 			log.Info("Updating ApplicationSet for Prefixlist", "name", prefixList.Name)
 			currAppset.Spec = desiredAppset.Spec
-			currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+			currAppset.Annotations = desiredAppset.Annotations
 			return ctrl.Result{}, r.Update(ctx, currAppset)
 		}
 	}
@@ -232,13 +232,13 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 				}
 				newmd5Hash := md5.Sum(prefixByteA)
 
-				curHash, ok := generatedPrefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+				curHash, ok := generatedPrefixList.Annotations[builder.ValuesHashAnnotation]
 				if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
 					log.Info("Generated PrefixList already exists for destination with the correct config (md5-hash).")
 					return ctrl.Result{}, nil
 				}
 
-				generatedPrefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
+				generatedPrefixList.Annotations[builder.ValuesHashAnnotation] = fmt.Sprintf("%x", newmd5Hash)
 				generatedPrefixList.Spec.Prefix = newPrefix
 
 				return ctrl.Result{}, r.Update(ctx, generatedPrefixList)
@@ -265,7 +265,7 @@ func (r *PrefixListReconciler) handleControllerPrefixList(prefixList *infrastruc
 	}
 	newmd5Hash := md5.Sum(prefixByteA)
 
-	curHash, ok := prefixList.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+	curHash, ok := prefixList.Annotations[builder.ValuesHashAnnotation]
 
 	if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
 

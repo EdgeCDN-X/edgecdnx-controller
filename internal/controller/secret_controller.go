@@ -131,11 +131,11 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return ctrl.Result{}, nil
 			}
 
-			currAppHash, ok := currApp.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currAppHash, ok := currApp.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppHash != hash {
 				log.Info("Updating Application for TLS Secret", "name", secret.Name)
 				currApp.Spec = desiredApp.Spec
-				currApp.ObjectMeta.Annotations = desiredApp.ObjectMeta.Annotations
+				currApp.Annotations = desiredApp.Annotations
 				return ctrl.Result{}, r.Update(ctx, currApp)
 			}
 		}

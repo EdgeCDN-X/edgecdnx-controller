@@ -127,11 +127,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			// Update Certificate if spec changed
-			currCertHash, ok := currCert.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currCertHash, ok := currCert.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currCertHash != hash {
 				log.Info("Updating Certificate for Service", "name", service.Name)
 				currCert.Spec = desiredCert.Spec
-				currCert.ObjectMeta.Annotations = desiredCert.ObjectMeta.Annotations
+				currCert.Annotations = desiredCert.Annotations
 				return ctrl.Result{}, r.Update(ctx, currCert)
 			}
 		}
@@ -200,11 +200,11 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for Service", "name", service.Name)
 				currAppset.Spec = desiredAppset.Spec
-				currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+				currAppset.Annotations = desiredAppset.Annotations
 				return ctrl.Result{}, r.Update(ctx, currAppset)
 			}
 		}

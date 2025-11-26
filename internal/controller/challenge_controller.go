@@ -169,7 +169,7 @@ func (r *ChallengeReconciler) getChallengeResources(challenge *acmev1.Challenge,
 		},
 	}
 
-	serviceName := strings.Replace(challenge.Name, ".", "-", -1)
+	serviceName := strings.ReplaceAll(challenge.Name, ".", "-")
 
 	service := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -322,11 +322,11 @@ func (r *ChallengeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{}, nil
 			}
 
-			currAppsetHash, ok := currAppset.ObjectMeta.Annotations[builder.ValuesHashAnnotation]
+			currAppsetHash, ok := currAppset.Annotations[builder.ValuesHashAnnotation]
 			if !ok || currAppsetHash != hash {
 				log.Info("Updating ApplicationSet for challenge", "name", challenge.Name)
 				currAppset.Spec = desiredAppset.Spec
-				currAppset.ObjectMeta.Annotations = desiredAppset.ObjectMeta.Annotations
+				currAppset.Annotations = desiredAppset.Annotations
 				return ctrl.Result{}, r.Update(ctx, currAppset)
 			}
 		}

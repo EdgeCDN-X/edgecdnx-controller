@@ -17,8 +17,8 @@ func TestConsolidation(t *testing.T) {
 
 var _ = Describe("Consolidation", func() {
 
-	var PrefixesV4 []infrastructurev1alpha1.V4PrefixSpec = make([]infrastructurev1alpha1.V4PrefixSpec, 0)
-	var PrefixesV6 []infrastructurev1alpha1.V6PrefixSpec = make([]infrastructurev1alpha1.V6PrefixSpec, 0)
+	var PrefixesV4 = make([]infrastructurev1alpha1.V4PrefixSpec, 0)
+	var PrefixesV6 = make([]infrastructurev1alpha1.V6PrefixSpec, 0)
 
 	It("ConsolidateV4 - Non Overlapping", func() {
 		PrefixesV4 = append(PrefixesV4, infrastructurev1alpha1.V4PrefixSpec{Address: "192.168.0.0", Size: 24})

@@ -68,7 +68,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	if !service.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !service.DeletionTimestamp.IsZero() {
 		log.Info("Service is being deleted, ignoring reconcile loop")
 		return ctrl.Result{}, nil
 	}
@@ -79,7 +79,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// On S3 upstream => S3 Gateway Service + deployment
 
 		// Service
-		serviceName := strings.Replace(service.Name, ".", "-", -1)
+		serviceName := strings.ReplaceAll(service.Name, ".", "-")
 		serviceBuilder, err := builder.CoreV1ServiceBuilderFactory("default", serviceName, service.Namespace)
 
 		if err != nil {
@@ -129,7 +129,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		// S3Gateway Deployment
-		deploymentName := strings.Replace(service.Name, ".", "-", -1) + "-s3gateway"
+		deploymentName := strings.ReplaceAll(service.Name, ".", "-") + "-s3gateway"
 
 		// If OriginType is static, delete deployment if exists
 		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {

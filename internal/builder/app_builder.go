@@ -74,9 +74,9 @@ func (b *ThrowableAppBuilder) WithProject(project string) {
 }
 
 func (b *ThrowableAppBuilder) WithAppMeta(name string, namespace string) {
-	b.app.ObjectMeta.Name = name
-	b.app.ObjectMeta.Namespace = namespace
-	b.app.ObjectMeta.Finalizers = []string{"resources-finalizer.argocd.argoproj.io"}
+	b.app.Name = name
+	b.app.Namespace = namespace
+	b.app.Finalizers = []string{"resources-finalizer.argocd.argoproj.io"}
 }
 
 func (b *ThrowableAppBuilder) WithDestination(destination string, namespace string) {

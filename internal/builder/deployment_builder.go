@@ -7,7 +7,6 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -23,9 +22,9 @@ type IDeploymentBuilder interface {
 	WithContainerImage(containerImage string)
 	WithContainerName(containerName string)
 	WithEnvVars(envVars map[string]string)
-	WithLivenessProbe(probe corev1.Probe)
-	WithReadinessProbe(probe corev1.Probe)
-	WithPorts(ports []corev1.ContainerPort)
+	WithLivenessProbe(probe v1.Probe)
+	WithReadinessProbe(probe v1.Probe)
+	WithPorts(ports []v1.ContainerPort)
 	WithService(service *infrastructurev1alpha1.Service)
 	Build() (appsv1.Deployment, string, error)
 }
@@ -57,18 +56,18 @@ func (b *DeploymentBuilder) WithReplicas(replicas int32) {
 
 func (b *DeploymentBuilder) WithContainerImage(containerImage string) {
 	if len(b.deployment.Spec.Template.Spec.Containers) == 0 {
-		b.deployment.Spec.Template.Spec.Containers = append(b.deployment.Spec.Template.Spec.Containers, corev1.Container{})
+		b.deployment.Spec.Template.Spec.Containers = append(b.deployment.Spec.Template.Spec.Containers, v1.Container{})
 	}
 	b.deployment.Spec.Template.Spec.Containers[0].Image = containerImage
 }
 
 func (b *DeploymentBuilder) WithEnvVars(envVars map[string]string) {
 	if len(b.deployment.Spec.Template.Spec.Containers) == 0 {
-		b.deployment.Spec.Template.Spec.Containers = append(b.deployment.Spec.Template.Spec.Containers, corev1.Container{})
+		b.deployment.Spec.Template.Spec.Containers = append(b.deployment.Spec.Template.Spec.Containers, v1.Container{})
 	}
 	container := &b.deployment.Spec.Template.Spec.Containers[0]
 	for key, value := range envVars {
-		container.Env = append(container.Env, corev1.EnvVar{
+		container.Env = append(container.Env, v1.EnvVar{
 			Name:  key,
 			Value: value,
 		})
@@ -93,21 +92,21 @@ func (b *DeploymentBuilder) Build() (appsv1.Deployment, string, error) {
 	return b.deployment, hash, nil
 }
 
-func (b *DeploymentBuilder) WithLivenessProbe(probe corev1.Probe) {
+func (b *DeploymentBuilder) WithLivenessProbe(probe v1.Probe) {
 	if len(b.deployment.Spec.Template.Spec.Containers) == 0 {
 		return
 	}
 	b.deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &probe
 }
 
-func (b *DeploymentBuilder) WithReadinessProbe(probe corev1.Probe) {
+func (b *DeploymentBuilder) WithReadinessProbe(probe v1.Probe) {
 	if len(b.deployment.Spec.Template.Spec.Containers) == 0 {
 		return
 	}
 	b.deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &probe
 }
 
-func (b *DeploymentBuilder) WithPorts(ports []corev1.ContainerPort) {
+func (b *DeploymentBuilder) WithPorts(ports []v1.ContainerPort) {
 	if len(b.deployment.Spec.Template.Spec.Containers) == 0 {
 		return
 	}
@@ -210,14 +209,14 @@ func NewDeploymentBuilder(name string, namespace string) *DeploymentBuilder {
 						"app": name,
 					},
 				},
-				Template: corev1.PodTemplateSpec{
+				Template: v1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
 							"app": name,
 						},
 					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
 							{
 								Name: name,
 							},
@@ -256,11 +255,11 @@ func DeploymentBuilderFactory(builderType string, name string, namespace string)
 				},
 			},
 		})
-		b.WithPorts([]corev1.ContainerPort{
+		b.WithPorts([]v1.ContainerPort{
 			{
 				Name:          "http",
 				ContainerPort: 80,
-				Protocol:      corev1.ProtocolTCP,
+				Protocol:      v1.ProtocolTCP,
 			},
 		})
 		return b, nil

@@ -96,8 +96,8 @@ func (b *ThrowableAppsetBuilder) WithHelmValues(values any) {
 }
 
 func (b *ThrowableAppsetBuilder) WithTargetAppMeta(templatedName string, namespace string, targetNamespace string) {
-	b.appSet.Spec.Template.ApplicationSetTemplateMeta.Name = templatedName
-	b.appSet.Spec.Template.ApplicationSetTemplateMeta.Namespace = namespace
+	b.appSet.Spec.Template.Name = templatedName
+	b.appSet.Spec.Template.Namespace = namespace
 	b.appSet.Spec.Template.Spec.Destination.Namespace = targetNamespace
 	b.appSet.Spec.Template.Spec.Destination.Server = "{{ server }}"
 }
@@ -121,8 +121,8 @@ func (b *ThrowableAppsetBuilder) WithLabelMatchers(labelMatch [][]metav1.LabelSe
 }
 
 func (b *ThrowableAppsetBuilder) WithAppsetMeta(name string, namespace string) {
-	b.appSet.ObjectMeta.Name = name
-	b.appSet.ObjectMeta.Namespace = namespace
+	b.appSet.Name = name
+	b.appSet.Namespace = namespace
 }
 
 func (b *ThrowableAppsetBuilder) Build() (argoprojv1alpha1.ApplicationSet, string, error) {
