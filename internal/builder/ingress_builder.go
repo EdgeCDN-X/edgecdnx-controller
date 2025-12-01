@@ -19,6 +19,7 @@ type IIngressBuilder interface {
 	WithIngressClass(ingressClass string)
 	WithRules(rules []networkingv1.IngressRule)
 	WithTls(tls []networkingv1.IngressTLS)
+	WithWaf(waf infrastructurev1alpha1.WafSpec)
 	Build() (networkingv1.Ingress, string, error)
 }
 
@@ -68,6 +69,19 @@ func (b *CacheIngressBuilder) Build() (networkingv1.Ingress, string, error) {
 
 func (b *CacheIngressBuilder) WithRules(rules []networkingv1.IngressRule) {
 	b.ingress.Spec.Rules = rules
+}
+
+func (b *CacheIngressBuilder) WithWaf(waf infrastructurev1alpha1.WafSpec) {
+	if (waf != infrastructurev1alpha1.WafSpec{}) && waf.Enabled {
+		b.WithAnnotation("nginx.ingress.kubernetes.io/modsecurity-transaction-id", "$request_id")
+		b.WithAnnotation("nginx.ingress.kubernetes.io/enable-owasp-core-rules", "true")
+		b.WithAnnotation("nginx.ingress.kubernetes.io/modsecurity-snippet", `
+			SecRuleEngine On
+		`)
+	} else {
+		b.WithAnnotation("nginx.ingress.kubernetes.io/modsecurity-transaction-id", "")
+		b.WithAnnotation("nginx.ingress.kubernetes.io/modsecurity-snippet", "SecRuleEngine Off")
+	}
 }
 
 func (b *CacheIngressBuilder) WithService(service infrastructurev1alpha1.Service) {
@@ -203,6 +217,8 @@ location /.edgecdnx/healthz {
 			},
 		})
 	}
+
+	b.WithWaf(service.Spec.Waf)
 }
 
 func NewCacheIngressBuilder(name string, namespace string, config CacheIngressBuilderConfig) *CacheIngressBuilder {
