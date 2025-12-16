@@ -39,6 +39,10 @@ spec:
           spec:
             description: ProjectSpec defines the desired state of Project.
             properties:
+              description:
+                type: string
+              name:
+                type: string
               rbac:
                 properties:
                   groups:

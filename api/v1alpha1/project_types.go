@@ -59,7 +59,9 @@ type RBACSpec struct {
 
 // ProjectSpec defines the desired state of Project.
 type ProjectSpec struct {
-	Rbac RBACSpec `json:"rbac,omitempty"`
+	Name        string   `json:"name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Rbac        RBACSpec `json:"rbac,omitempty"`
 }
 
 // ProjectStatus defines the observed state of Project.
