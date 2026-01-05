@@ -6,6 +6,7 @@ resources:
 - bases/infrastructure.edgecdnx.com_services.yaml
 - bases/infrastructure.edgecdnx.com_prefixlists.yaml
 - bases/infrastructure.edgecdnx.com_projects.yaml
+- bases/infrastructure.edgecdnx.com_zones.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

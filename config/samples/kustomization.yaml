@@ -4,4 +4,5 @@ resources:
 - infrastructure_v1alpha1_service.yaml
 - infrastructure_v1alpha1_prefixlist.yaml
 - infrastructure_v1alpha1_project.yaml
+- infrastructure_v1alpha1_zone.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
