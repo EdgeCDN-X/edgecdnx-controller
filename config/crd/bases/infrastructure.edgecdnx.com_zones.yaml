@@ -46,9 +46,22 @@ spec:
               zone:
                 description: Zone is the name of the zone.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
+            required:
+            - email
+            - zone
             type: object
           status:
             description: ZoneStatus defines the observed state of Zone.
+            properties:
+              status:
+                enum:
+                - Healthy
+                - Progressing
+                - Degraded
+                type: string
             type: object
         type: object
     served: true

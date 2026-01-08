@@ -166,6 +166,27 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 			},
 		})
 		return b, nil
+	case "Zone":
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
+			ChartRepository: throwerOption.ThrowerChartRepository,
+			ChartName:       throwerOption.ThrowerChartName,
+			ChartVersion:    throwerOption.ThrowerChartVersion,
+			ReleaseName:     `zone-{{ name }}`,
+		})
+		b.WithTargetAppMeta(fmt.Sprintf(`zone-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
+			{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+			},
+		})
+		return b, nil
 	case "Challenge":
 		b := NewThrowableAppsetBuilder(name)
 		b.WithHelmChartParams(ChartParams{

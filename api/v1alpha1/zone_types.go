@@ -29,15 +29,16 @@ type ZoneSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Zone is the name of the zone.
-	Zone string `json:"zone,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	Zone string `json:"zone"`
 	// Email is the contact email for the zone. Must be in dot notation e.g. noc.zone.custom.com
-	Email string `json:"email,omitempty"`
+	Email string `json:"email"`
 }
 
 // ZoneStatus defines the observed state of Zone.
 type ZoneStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
+	Status string `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

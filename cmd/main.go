@@ -305,6 +305,24 @@ func main() {
 		}
 	}
 
+	// Test - Done
+	if role == RoleController {
+		if err = (&controller.ZoneReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Zone")
+			os.Exit(1)
+		}
+	}
+
 	// Tests - In Progress
 	if role == RoleController {
 		if err = (&controller.ServiceReconciler{
