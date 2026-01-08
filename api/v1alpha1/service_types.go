@@ -99,6 +99,13 @@ type WafSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+type HostAliasSpec struct {
+	// Host Alias Name
+	Name string `json:"name"`
+	// If SSL Certificate is provided by the user, it will be stored here
+	Certificate CertificateSpec `json:"certificate,omitempty"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
 	// Service Name. Use full domain name for the service
@@ -124,6 +131,10 @@ type ServiceSpec struct {
 	Cache string `json:"cache,omitempty"`
 	// Specifies the cache key modifiers for the service
 	CacheKeySpec CacheKeySpec `json:"cacheKey"`
+
+	// Host Aliases for the service
+	// +kubebuilder:validation:MaxItems=10
+	HostAliases []HostAliasSpec `json:"hostAliases,omitempty"`
 
 	// WAF configfiguration
 	Waf WafSpec `json:"waf"`

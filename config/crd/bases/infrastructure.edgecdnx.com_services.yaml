@@ -90,6 +90,36 @@ spec:
               domain:
                 description: Domain name. Ideally the same as the service name
                 type: string
+              hostAliases:
+                description: Host Aliases for the service
+                items:
+                  properties:
+                    certificate:
+                      description: If SSL Certificate is provided by the user, it
+                        will be stored here
+                      properties:
+                        certificateRef:
+                          description: Specifies the Certificate Object Reference
+                          type: string
+                        crt:
+                          description: Specifies the Certificate as an inline object
+                          type: string
+                        key:
+                          description: Specifies the Key as an inline object
+                          type: string
+                        secretRef:
+                          description: Specifies the Secret Object Reference for the
+                            certificate
+                          type: string
+                      type: object
+                    name:
+                      description: Host Alias Name
+                      type: string
+                  required:
+                  - name
+                  type: object
+                maxItems: 10
+                type: array
               name:
                 description: Service Name. Use full domain name for the service
                 type: string

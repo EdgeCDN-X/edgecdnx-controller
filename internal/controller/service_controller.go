@@ -88,6 +88,16 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
+		// Add hostAliases to the certificate DNS names
+		if len(service.Spec.HostAliases) > 0 {
+			var dnsNames []string
+			dnsNames = append(dnsNames, service.Spec.Domain)
+			for _, ha := range service.Spec.HostAliases {
+				dnsNames = append(dnsNames, ha.Name)
+			}
+			certBuilder.WithDNSNames(dnsNames)
+		}
+
 		desiredCert, hash, err := certBuilder.Build()
 		if err != nil {
 			log.Error(err, "Failed to get Certificate for Service")
