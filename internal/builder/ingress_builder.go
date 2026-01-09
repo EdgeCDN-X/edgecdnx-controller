@@ -18,7 +18,9 @@ type IIngressBuilder interface {
 	WithAnnotation(key string, value string)
 	WithIngressClass(ingressClass string)
 	WithRules(rules []networkingv1.IngressRule)
+	WithAdditionalRules(rules []networkingv1.IngressRule)
 	WithTls(tls []networkingv1.IngressTLS)
+	WithAdditionalTLS(tls []networkingv1.IngressTLS)
 	WithWaf(waf infrastructurev1alpha1.WafSpec)
 	Build() (networkingv1.Ingress, string, error)
 }
@@ -54,6 +56,10 @@ func (b *CacheIngressBuilder) WithTls(tls []networkingv1.IngressTLS) {
 	b.ingress.Spec.TLS = tls
 }
 
+func (b *CacheIngressBuilder) WithAdditionalTLS(tls []networkingv1.IngressTLS) {
+	b.ingress.Spec.TLS = append(b.ingress.Spec.TLS, tls...)
+}
+
 func (b *CacheIngressBuilder) Build() (networkingv1.Ingress, string, error) {
 
 	marshalled, err := json.Marshal(b.ingress)
@@ -69,6 +75,10 @@ func (b *CacheIngressBuilder) Build() (networkingv1.Ingress, string, error) {
 
 func (b *CacheIngressBuilder) WithRules(rules []networkingv1.IngressRule) {
 	b.ingress.Spec.Rules = rules
+}
+
+func (b *CacheIngressBuilder) WithAdditionalRules(rules []networkingv1.IngressRule) {
+	b.ingress.Spec.Rules = append(b.ingress.Spec.Rules, rules...)
 }
 
 func (b *CacheIngressBuilder) WithWaf(waf infrastructurev1alpha1.WafSpec) {
@@ -157,6 +167,15 @@ location /.edgecdnx/healthz {
 				SecretName: service.Name + "-tls",
 			},
 		})
+
+		for _, alias := range service.Spec.HostAliases {
+			b.WithAdditionalTLS([]networkingv1.IngressTLS{
+				{
+					Hosts:      []string{alias.Name},
+					SecretName: service.Name + "-tls",
+				},
+			})
+		}
 	}
 
 	if len(service.Spec.SecureKeys) > 0 {
@@ -167,55 +186,82 @@ location /.edgecdnx/healthz {
 		b.WithAnnotation("nginx.ingress.kubernetes.io/backend-protocol", strings.ToUpper(service.Spec.StaticOrigins[0].Scheme))
 		b.WithAnnotation("nginx.ingress.kubernetes.io/upstream-vhost", service.Spec.StaticOrigins[0].HostHeader)
 
-		b.WithRules([]networkingv1.IngressRule{
-			{
-				Host: service.Spec.Domain,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{
-						Paths: []networkingv1.HTTPIngressPath{
-							{
-								Path:     "/",
-								PathType: &pathTypeImplementationSpecific,
-								Backend: networkingv1.IngressBackend{
-									Service: &networkingv1.IngressServiceBackend{
-										Name: serviceName,
-										Port: networkingv1.ServiceBackendPort{
-											Number: int32(service.Spec.StaticOrigins[0].Port),
-										},
-									},
-								},
+		ingressRuleValue := &networkingv1.HTTPIngressRuleValue{
+			Paths: []networkingv1.HTTPIngressPath{
+				{
+					Path:     "/",
+					PathType: &pathTypeImplementationSpecific,
+					Backend: networkingv1.IngressBackend{
+						Service: &networkingv1.IngressServiceBackend{
+							Name: serviceName,
+							Port: networkingv1.ServiceBackendPort{
+								Number: int32(service.Spec.StaticOrigins[0].Port),
 							},
 						},
 					},
 				},
 			},
+		}
+
+		b.WithRules([]networkingv1.IngressRule{
+			{
+				Host: service.Spec.Domain,
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: ingressRuleValue,
+				},
+			},
 		})
+
+		for _, alias := range service.Spec.HostAliases {
+			b.WithAdditionalRules([]networkingv1.IngressRule{
+				{
+					Host: alias.Name,
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: ingressRuleValue,
+					},
+				},
+			})
+		}
 	}
 
 	if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeS3 {
-		b.WithRules([]networkingv1.IngressRule{
-			{
-				Host: service.Spec.Domain,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{
-						Paths: []networkingv1.HTTPIngressPath{
-							{
-								Path:     "/",
-								PathType: &pathTypeImplementationSpecific,
-								Backend: networkingv1.IngressBackend{
-									Service: &networkingv1.IngressServiceBackend{
-										Name: serviceName,
-										Port: networkingv1.ServiceBackendPort{
-											Number: int32(80),
-										},
-									},
-								},
+
+		ingressRuleValue := &networkingv1.HTTPIngressRuleValue{
+			Paths: []networkingv1.HTTPIngressPath{
+				{
+					Path:     "/",
+					PathType: &pathTypeImplementationSpecific,
+					Backend: networkingv1.IngressBackend{
+						Service: &networkingv1.IngressServiceBackend{
+							Name: serviceName,
+							Port: networkingv1.ServiceBackendPort{
+								Number: int32(80),
 							},
 						},
 					},
 				},
 			},
+		}
+
+		b.WithRules([]networkingv1.IngressRule{
+			{
+				Host: service.Spec.Domain,
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: ingressRuleValue,
+				},
+			},
 		})
+
+		for _, alias := range service.Spec.HostAliases {
+			b.WithAdditionalRules([]networkingv1.IngressRule{
+				{
+					Host: alias.Name,
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: ingressRuleValue,
+					},
+				},
+			})
+		}
 	}
 
 	b.WithWaf(service.Spec.Waf)
