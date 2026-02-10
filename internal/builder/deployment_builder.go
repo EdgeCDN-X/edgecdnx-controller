@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -156,7 +157,7 @@ func (b *DeploymentBuilder) withS3GatewayCredentials(originSpec infrastructurev1
 		},
 		{
 			Name:  "S3_SERVER_PROTO",
-			Value: originSpec.S3ServerProto,
+			Value: strings.ToLower(originSpec.S3ServerProto),
 		},
 		{
 			Name:  "S3_SERVER_PORT",
