@@ -120,6 +120,16 @@ spec:
                   type: object
                 maxItems: 10
                 type: array
+              mirror:
+                description: Specifies the Mirror configuration for the service
+                properties:
+                  hostHeader:
+                    description: Specifies the Mirror Host Header for the service
+                    type: string
+                  url:
+                    description: Specifies the Mirror URL for the service
+                    type: string
+                type: object
               name:
                 description: Service Name. Use full domain name for the service
                 type: string
@@ -237,6 +247,7 @@ spec:
             - cacheKey
             - certificate
             - customer
+            - mirror
             - waf
             type: object
           status:
