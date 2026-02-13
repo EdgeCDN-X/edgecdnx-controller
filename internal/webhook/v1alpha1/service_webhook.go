@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // nolint:unused
@@ -35,8 +36,11 @@ var servicelog = logf.Log.WithName("service-resource")
 
 // SetupServiceWebhookWithManager registers the webhook for Service in the manager.
 func SetupServiceWebhookWithManager(mgr ctrl.Manager) error {
+
 	return ctrl.NewWebhookManagedBy(mgr).For(&infrastructurev1alpha1.Service{}).
-		WithValidator(&ServiceCustomValidator{}).
+		WithValidator(&ServiceCustomValidator{
+			Client: mgr.GetClient(),
+		}).
 		Complete()
 }
 
@@ -53,7 +57,7 @@ func SetupServiceWebhookWithManager(mgr ctrl.Manager) error {
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as this struct is used only for temporary operations and does not need to be deeply copied.
 type ServiceCustomValidator struct {
-	// TODO(user): Add more fields as needed for validation
+	client.Client
 }
 
 var _ webhook.CustomValidator = &ServiceCustomValidator{}
@@ -67,6 +71,11 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 	servicelog.Info("Validation for Service upon creation", "name", service.GetName())
 
 	// TODO(user): fill in your validation logic upon object creation.
+
+	services := &infrastructurev1alpha1.ServiceList{}
+	v.Client.List(ctx, services, client.InNamespace(service.Namespace))
+
+	// TODO(user): add validation logic to check for duplicate hostAliases.
 
 	return nil, nil
 }
