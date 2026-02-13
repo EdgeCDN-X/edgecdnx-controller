@@ -39,13 +39,15 @@ import (
 
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 
-	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+
+	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
+	webhookinfrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -414,6 +416,13 @@ func main() {
 		}
 	}
 
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookinfrastructurev1alpha1.SetupServiceWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Service")
+			os.Exit(1)
+		}
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {
