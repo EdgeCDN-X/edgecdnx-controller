@@ -182,6 +182,13 @@ location /.edgecdnx/healthz {
 		b.WithAnnotation("nginx.ingress.kubernetes.io/auth-url", b.config.SecureUrlsEndpoint)
 	}
 
+	if service.Spec.MirrorSpec.URL != "" {
+		b.WithAnnotation("nginx.ingress.kubernetes.io/mirror-target", fmt.Sprintf(`%s$request_uri`, service.Spec.MirrorSpec.URL))
+		if service.Spec.MirrorSpec.HostHeader != "" {
+			b.WithAnnotation("nginx.ingress.kubernetes.io/mirror-host", service.Spec.MirrorSpec.HostHeader)
+		}
+	}
+
 	if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
 		b.WithAnnotation("nginx.ingress.kubernetes.io/backend-protocol", strings.ToUpper(service.Spec.StaticOrigins[0].Scheme))
 		b.WithAnnotation("nginx.ingress.kubernetes.io/upstream-vhost", service.Spec.StaticOrigins[0].HostHeader)

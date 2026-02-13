@@ -106,6 +106,13 @@ type HostAliasSpec struct {
 	Certificate CertificateSpec `json:"certificate,omitempty"`
 }
 
+type MirrorSpec struct {
+	// Specifies the Mirror URL for the service
+	URL string `json:"url,omitempty"`
+	// Specifies the Mirror Host Header for the service
+	HostHeader string `json:"hostHeader,omitempty"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
 	// Service Name. Use full domain name for the service
@@ -131,6 +138,9 @@ type ServiceSpec struct {
 	Cache string `json:"cache,omitempty"`
 	// Specifies the cache key modifiers for the service
 	CacheKeySpec CacheKeySpec `json:"cacheKey"`
+
+	// Specifies the Mirror configuration for the service
+	MirrorSpec MirrorSpec `json:"mirror"`
 
 	// Host Aliases for the service
 	// +kubebuilder:validation:MaxItems=10
