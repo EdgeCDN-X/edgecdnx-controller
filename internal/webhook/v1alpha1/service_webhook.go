@@ -74,12 +74,14 @@ func (v *ServiceCustomValidator) ValidateDomainDuplicates(ctx context.Context, s
 
 	// Check for hostAlias or domain name duplicates
 	for _, svc := range services.Items {
-		if svc.Spec.Domain == service.Spec.Domain {
+		if svc.Spec.Domain == service.Spec.Domain && svc.Name != service.Name && svc.Namespace != service.Namespace {
+			// Do not validate agains self
 			warnings = append(warnings, fmt.Sprintf("domain %s is already used by Service %s/%s", service.Spec.Domain, svc.Namespace, svc.Name))
 			return warnings, fmt.Errorf("domain %s is already used by Service %s/%s", service.Spec.Domain, svc.Namespace, svc.Name)
 		}
 
 		for _, hostAlias := range svc.Spec.HostAliases {
+			// Validate Against self too
 			if slices.ContainsFunc(service.Spec.HostAliases, func(ha infrastructurev1alpha1.HostAliasSpec) bool {
 				return ha.Name == hostAlias.Name
 			}) {
