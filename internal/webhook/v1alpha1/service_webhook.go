@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,6 +63,35 @@ type ServiceCustomValidator struct {
 
 var _ webhook.CustomValidator = &ServiceCustomValidator{}
 
+func (v *ServiceCustomValidator) ValidateDomainDuplicates(ctx context.Context, service *infrastructurev1alpha1.Service) (admission.Warnings, error) {
+	services := &infrastructurev1alpha1.ServiceList{}
+	err := v.Client.List(ctx, services)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list services: %w", err)
+	}
+
+	warnings := make([]string, 0)
+
+	// Check for hostAlias or domain name duplicates
+	for _, svc := range services.Items {
+		if svc.Spec.Domain == service.Spec.Domain {
+			warnings = append(warnings, fmt.Sprintf("domain %s is already used by Service %s/%s", service.Spec.Domain, svc.Namespace, svc.Name))
+			return warnings, fmt.Errorf("domain %s is already used by Service %s/%s", service.Spec.Domain, svc.Namespace, svc.Name)
+		}
+
+		for _, hostAlias := range svc.Spec.HostAliases {
+			if slices.ContainsFunc(service.Spec.HostAliases, func(ha infrastructurev1alpha1.HostAliasSpec) bool {
+				return ha.Name == hostAlias.Name
+			}) {
+				warnings = append(warnings, fmt.Sprintf("hostAlias %s is already used by Service %s/%s", hostAlias.Name, svc.Namespace, svc.Name))
+				return warnings, fmt.Errorf("hostAlias %s is already used by Service %s/%s", hostAlias.Name, svc.Namespace, svc.Name)
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
 func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	service, ok := obj.(*infrastructurev1alpha1.Service)
@@ -69,15 +99,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("expected a Service object but got %T", obj)
 	}
 	servicelog.Info("Validation for Service upon creation", "name", service.GetName())
-
-	// TODO(user): fill in your validation logic upon object creation.
-
-	services := &infrastructurev1alpha1.ServiceList{}
-	v.Client.List(ctx, services, client.InNamespace(service.Namespace))
-
-	// TODO(user): add validation logic to check for duplicate hostAliases.
-
-	return nil, nil
+	return v.ValidateDomainDuplicates(ctx, service)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Service.
@@ -89,8 +111,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	servicelog.Info("Validation for Service upon update", "name", service.GetName())
 
 	// TODO(user): fill in your validation logic upon object update.
-
-	return nil, nil
+	return v.ValidateDomainDuplicates(ctx, service)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Service.
@@ -100,8 +121,6 @@ func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("expected a Service object but got %T", obj)
 	}
 	servicelog.Info("Validation for Service upon deletion", "name", service.GetName())
-
-	// TODO(user): fill in your validation logic upon object deletion.
 
 	return nil, nil
 }
