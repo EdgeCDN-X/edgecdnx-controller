@@ -24,3 +24,23 @@ webhooks:
     resources:
     - services
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-edgecdnx-com-v1alpha1-zone
+  failurePolicy: Fail
+  name: vzone-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - infrastructure.edgecdnx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - zones
+  sideEffects: None
