@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/miekg/dns"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -120,7 +121,31 @@ func (v *ZoneCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Ob
 	}
 	zonelog.Info("Validation for Zone upon deletion", "name", zone.GetName())
 
-	// TODO do not delete until no services with this zone exist
+	services := &infrastructurev1alpha1.ServiceList{}
+	if err := v.Client.List(ctx, services); err != nil {
+		return nil, fmt.Errorf("failed to list existing services: %w", err)
+	}
+
+	var servicesUsingZone []string
+	for _, service := range services.Items {
+		if dns.IsSubDomain(fmt.Sprintf("%s.", zone.Spec.Zone), fmt.Sprintf("%s.", service.Spec.Domain)) {
+			servicesUsingZone = append(servicesUsingZone, service.Name)
+		}
+
+		if slices.ContainsFunc(service.Spec.HostAliases, func(alias infrastructurev1alpha1.HostAliasSpec) bool {
+			return dns.IsSubDomain(fmt.Sprintf("%s.", zone.Spec.Zone), fmt.Sprintf("%s.", alias.Name))
+		}) {
+			servicesUsingZone = append(servicesUsingZone, service.Name)
+		}
+	}
+
+	if len(servicesUsingZone) > 0 {
+		warnings := make(admission.Warnings, 0, len(servicesUsingZone))
+		for _, service := range servicesUsingZone {
+			warnings = append(warnings, fmt.Sprintf("zone %q is still in use by service %q", zone.Spec.Zone, service))
+		}
+		return warnings, fmt.Errorf("zone %q is still in use by services: %v", zone.Spec.Zone, servicesUsingZone)
+	}
 
 	return nil, nil
 }
