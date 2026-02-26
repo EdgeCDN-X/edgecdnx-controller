@@ -159,6 +159,7 @@ location /.edgecdnx/healthz {
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-methods", "GET,OPTIONS,HEAD")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-origin", "*")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-credentials", "true")
+	b.WithAnnotation("nginx.ingress.kubernetes.io/force-ssl-redirect", "true")
 
 	if service.Spec.Certificate.Crt != "" && service.Spec.Certificate.Key != "" {
 		b.WithTls([]networkingv1.IngressTLS{
