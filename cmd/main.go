@@ -427,7 +427,10 @@ func main() {
 
 	// nolint:goconst
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = webhookinfrastructurev1alpha1.SetupServiceWebhookWithManager(mgr, parseCSVValues(blockedUpstreamTLDs)); err != nil {
+		if err = webhookinfrastructurev1alpha1.SetupServiceWebhookWithManager(
+			mgr,
+			parseCSVValues(blockedUpstreamTLDs),
+		); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Service")
 			os.Exit(1)
 		}
