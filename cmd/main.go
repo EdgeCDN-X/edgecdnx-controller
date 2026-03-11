@@ -21,6 +21,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -98,6 +99,7 @@ func main() {
 
 	// Secure URLs
 	var secureUrlsEndpoint string
+	var blockedUpstreamTLDs string
 
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
@@ -166,6 +168,13 @@ func main() {
 		"secure-urls-endpoint",
 		"http://secure-urls.edgecdnx-cache.svc.cluster.local",
 		"The endpoint for the secure URLs service.",
+	)
+
+	flag.StringVar(
+		&blockedUpstreamTLDs,
+		"blocked-upstream-tlds",
+		"local,internal,private",
+		"Comma-separated list of blocked upstream TLDs for service static origins.",
 	)
 
 	opts := zap.Options{
@@ -418,7 +427,7 @@ func main() {
 
 	// nolint:goconst
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = webhookinfrastructurev1alpha1.SetupServiceWebhookWithManager(mgr); err != nil {
+		if err = webhookinfrastructurev1alpha1.SetupServiceWebhookWithManager(mgr, parseCSVValues(blockedUpstreamTLDs)); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Service")
 			os.Exit(1)
 		}
@@ -462,4 +471,23 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func parseCSVValues(rawValue string) []string {
+	if strings.TrimSpace(rawValue) == "" {
+		return nil
+	}
+
+	parts := strings.Split(rawValue, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmedPart := strings.TrimSpace(part)
+		if trimmedPart == "" {
+			continue
+		}
+
+		values = append(values, trimmedPart)
+	}
+
+	return values
 }

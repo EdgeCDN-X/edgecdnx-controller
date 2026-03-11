@@ -109,7 +109,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupServiceWebhookWithManager(mgr)
+	err = SetupServiceWebhookWithManager(mgr, []string{"local", "internal", "private"})
 	Expect(err).NotTo(HaveOccurred())
 
 	err = SetupZoneWebhookWithManager(mgr)

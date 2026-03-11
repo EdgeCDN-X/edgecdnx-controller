@@ -19,7 +19,9 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"net"
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,11 +38,12 @@ import (
 var servicelog = logf.Log.WithName("service-resource")
 
 // SetupServiceWebhookWithManager registers the webhook for Service in the manager.
-func SetupServiceWebhookWithManager(mgr ctrl.Manager) error {
+func SetupServiceWebhookWithManager(mgr ctrl.Manager, blockedUpstreamTLDs []string) error {
 
 	return ctrl.NewWebhookManagedBy(mgr).For(&infrastructurev1alpha1.Service{}).
 		WithValidator(&ServiceCustomValidator{
-			Client: mgr.GetClient(),
+			Client:              mgr.GetClient(),
+			BlockedUpstreamTLDs: normaliseUpstreamTLDs(blockedUpstreamTLDs),
 		}).
 		Complete()
 }
@@ -58,12 +61,31 @@ func SetupServiceWebhookWithManager(mgr ctrl.Manager) error {
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as this struct is used only for temporary operations and does not need to be deeply copied.
 type ServiceCustomValidator struct {
-	Client client.Client
+	Client              client.Client
+	BlockedUpstreamTLDs []string
 }
 
 var _ webhook.CustomValidator = &ServiceCustomValidator{}
 
-func (v *ServiceCustomValidator) ValidateDomainDuplicates(ctx context.Context, service *infrastructurev1alpha1.Service) (admission.Warnings, error) {
+func normaliseUpstreamTLDs(tlds []string) []string {
+	normalizedTLDs := make([]string, 0, len(tlds))
+	for _, tld := range tlds {
+		normalizedTLD := strings.TrimSpace(strings.ToLower(tld))
+		normalizedTLD = strings.TrimPrefix(normalizedTLD, ".")
+		if normalizedTLD == "" {
+			continue
+		}
+		normalizedTLDs = append(normalizedTLDs, normalizedTLD)
+	}
+
+	if len(normalizedTLDs) == 0 {
+		return []string{}
+	}
+
+	return normalizedTLDs
+}
+
+func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *infrastructurev1alpha1.Service) (admission.Warnings, error) {
 	services := &infrastructurev1alpha1.ServiceList{}
 	err := v.Client.List(ctx, services)
 	if err != nil {
@@ -95,7 +117,96 @@ func (v *ServiceCustomValidator) ValidateDomainDuplicates(ctx context.Context, s
 		}
 	}
 
+	// Check if upstream configuration is valid
+	if service.Spec.OriginType == "static" {
+		if len(service.Spec.StaticOrigins) == 0 {
+			return nil, fmt.Errorf("originType is set to static but no staticOrigins are defined")
+		}
+
+		for _, staticOrigin := range service.Spec.StaticOrigins {
+			if staticOrigin.Upstream == "" {
+				return nil, fmt.Errorf("static origin has an empty upstream")
+			}
+
+			if err := v.validateUpstreamConfiguration(staticOrigin.Upstream); err != nil {
+				return nil, err
+			}
+
+			if staticOrigin.HostHeader != "" {
+				if err := v.validateUpstreamConfiguration(staticOrigin.HostHeader); err != nil {
+					return nil, fmt.Errorf("invalid hostHeader %q: %w", staticOrigin.HostHeader, err)
+				}
+			}
+		}
+	}
+
 	return nil, nil
+}
+
+func (v *ServiceCustomValidator) validateUpstreamConfiguration(upstream string) error {
+	trimmedUpstream := strings.TrimSpace(upstream)
+	if trimmedUpstream == "" {
+		return fmt.Errorf("static origin has an empty upstream")
+	}
+
+	ip := net.ParseIP(trimmedUpstream)
+	if ip != nil {
+		ipv4 := ip.To4()
+		if ipv4 == nil {
+			return fmt.Errorf("upstream %q must be a public IPv4 address or an FQDN", upstream)
+		}
+
+		if ip.IsPrivate() {
+			return fmt.Errorf("upstream %q is a private IPv4 address, which is not allowed", upstream)
+		}
+
+		return nil
+	}
+
+	if !isFQDN(trimmedUpstream) {
+		return fmt.Errorf("upstream %q must be a public IPv4 address or an FQDN", upstream)
+	}
+
+	normalizedHost := strings.TrimSuffix(strings.ToLower(trimmedUpstream), ".")
+	for _, blockedTLD := range v.BlockedUpstreamTLDs {
+		if strings.HasSuffix(normalizedHost, "."+blockedTLD) {
+			return fmt.Errorf("upstream %q uses blocked top-level domain .%s", upstream, blockedTLD)
+		}
+	}
+
+	return nil
+}
+
+func isFQDN(host string) bool {
+	normalizedHost := strings.TrimSuffix(host, ".")
+	if len(normalizedHost) == 0 || len(normalizedHost) > 253 {
+		return false
+	}
+
+	labels := strings.Split(normalizedHost, ".")
+	if len(labels) < 2 {
+		return false
+	}
+
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+
+		for _, character := range label {
+			if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '-' {
+				continue
+			}
+
+			return false
+		}
+	}
+
+	return true
 }
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
@@ -105,7 +216,7 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime
 		return nil, fmt.Errorf("expected a Service object but got %T", obj)
 	}
 	servicelog.Info("Validation for Service upon creation", "name", service.GetName())
-	return v.ValidateDomainDuplicates(ctx, service)
+	return v.ValidateService(ctx, service)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Service.
@@ -117,7 +228,7 @@ func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	servicelog.Info("Validation for Service upon update", "name", service.GetName())
 
 	// TODO(user): fill in your validation logic upon object update.
-	return v.ValidateDomainDuplicates(ctx, service)
+	return v.ValidateService(ctx, service)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Service.
