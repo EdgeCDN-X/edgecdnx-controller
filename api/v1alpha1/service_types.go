@@ -147,7 +147,7 @@ type ServiceSpec struct {
 	CacheKeySpec CacheKeySpec `json:"cacheKey"`
 
 	// Specifies the Mirror configuration for the service
-	MirrorSpec MirrorSpec `json:"mirror"`
+	MirrorSpec MirrorSpec `json:"mirror,omitempty"`
 
 	// Host Aliases for the service
 	// +kubebuilder:validation:MaxItems=10

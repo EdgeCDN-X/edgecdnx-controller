@@ -260,7 +260,6 @@ spec:
             - cacheKey
             - certificate
             - customer
-            - mirror
             - waf
             type: object
           status:
