@@ -113,6 +113,13 @@ type MirrorSpec struct {
 	HostHeader string `json:"hostHeader,omitempty"`
 }
 
+type PathSpec struct {
+	// Specifies the Path for the ingres rule. If not set, defaults to /
+	Paths []string `json:"paths,omitempty"`
+	// If not null, rewrite engine is enabled for the rule
+	Rewrite string `json:"rewrite,omitempty"`
+}
+
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
 	// Service Name. Use full domain name for the service
@@ -146,8 +153,11 @@ type ServiceSpec struct {
 	// +kubebuilder:validation:MaxItems=10
 	HostAliases []HostAliasSpec `json:"hostAliases,omitempty"`
 
-	// WAF configfiguration
+	// WAF configuration
 	Waf WafSpec `json:"waf"`
+
+	// Path Configuration. If not set defaults to /
+	Path PathSpec `json:"path,omitempty"`
 }
 
 // ServiceStatus defines the observed state of Service.

@@ -155,6 +155,8 @@ location /.edgecdnx/healthz {
 	return 200 "OK";
 }
 	`)
+
+	// TODO add cors configuration to the service itself instead of hardcoding it here
 	b.WithAnnotation("nginx.ingress.kubernetes.io/enable-cors", "true")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-methods", "GET,OPTIONS,HEAD")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-origin", "*")
@@ -194,10 +196,30 @@ location /.edgecdnx/healthz {
 		b.WithAnnotation("nginx.ingress.kubernetes.io/backend-protocol", strings.ToUpper(service.Spec.StaticOrigins[0].Scheme))
 		b.WithAnnotation("nginx.ingress.kubernetes.io/upstream-vhost", service.Spec.StaticOrigins[0].HostHeader)
 
-		ingressRuleValue := &networkingv1.HTTPIngressRuleValue{
-			Paths: []networkingv1.HTTPIngressPath{
-				{
-					Path:     "/",
+		if service.Spec.Path.Rewrite != "" {
+			b.WithAnnotation("nginx.ingress.kubernetes.io/use-regex", "true")
+			b.WithAnnotation("nginx.ingress.kubernetes.io/rewrite-target", service.Spec.Path.Rewrite)
+		}
+
+		paths := make([]networkingv1.HTTPIngressPath, 0)
+
+		if len(service.Spec.Path.Paths) == 0 {
+			paths = append(paths, networkingv1.HTTPIngressPath{
+				Path:     "/",
+				PathType: &pathTypeImplementationSpecific,
+				Backend: networkingv1.IngressBackend{
+					Service: &networkingv1.IngressServiceBackend{
+						Name: serviceName,
+						Port: networkingv1.ServiceBackendPort{
+							Number: int32(service.Spec.StaticOrigins[0].Port),
+						},
+					},
+				},
+			})
+		} else {
+			for _, path := range service.Spec.Path.Paths {
+				paths = append(paths, networkingv1.HTTPIngressPath{
+					Path:     path,
 					PathType: &pathTypeImplementationSpecific,
 					Backend: networkingv1.IngressBackend{
 						Service: &networkingv1.IngressServiceBackend{
@@ -207,8 +229,12 @@ location /.edgecdnx/healthz {
 							},
 						},
 					},
-				},
-			},
+				})
+			}
+		}
+
+		ingressRuleValue := &networkingv1.HTTPIngressRuleValue{
+			Paths: paths,
 		}
 
 		b.WithRules([]networkingv1.IngressRule{

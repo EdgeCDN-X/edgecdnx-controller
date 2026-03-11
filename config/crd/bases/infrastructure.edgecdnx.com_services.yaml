@@ -139,6 +139,19 @@ spec:
                 - s3
                 - static
                 type: string
+              path:
+                description: Path Configuration. If not set defaults to /
+                properties:
+                  paths:
+                    description: Specifies the Path for the ingres rule. If not set,
+                      defaults to /
+                    items:
+                      type: string
+                    type: array
+                  rewrite:
+                    description: If not null, rewrite engine is enabled for the rule
+                    type: string
+                type: object
               s3OriginSpec:
                 description: Defines the specs of the origin if an S3 origin is used
                 items:
@@ -238,7 +251,7 @@ spec:
                   type: object
                 type: array
               waf:
-                description: WAF configfiguration
+                description: WAF configuration
                 properties:
                   enabled:
                     type: boolean
