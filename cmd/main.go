@@ -101,6 +101,9 @@ func main() {
 	var secureUrlsEndpoint string
 	var blockedUpstreamTLDs string
 
+	// Cache Controller
+	var location string
+
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -175,6 +178,13 @@ func main() {
 		"blocked-upstream-tlds",
 		"local,internal,private",
 		"Comma-separated list of blocked upstream TLDs for service static origins.",
+	)
+
+	flag.StringVar(
+		&location,
+		"location",
+		"",
+		"The location name for this cache controller instance.",
 	)
 
 	opts := zap.Options{
@@ -409,6 +419,7 @@ func main() {
 			Client:             mgr.GetClient(),
 			Scheme:             mgr.GetScheme(),
 			SecureUrlsEndpoint: secureUrlsEndpoint,
+			Location:           location,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ServiceCache")
 			os.Exit(1)

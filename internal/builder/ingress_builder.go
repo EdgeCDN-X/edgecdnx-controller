@@ -32,6 +32,7 @@ type CacheIngressBuilder struct {
 
 type CacheIngressBuilderConfig struct {
 	SecureUrlsEndpoint string
+	Location           string
 }
 
 func (b *CacheIngressBuilder) WithLabel(key string, value string) {
@@ -162,6 +163,18 @@ location /.edgecdnx/healthz {
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-origin", "*")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-credentials", "true")
 	b.WithAnnotation("nginx.ingress.kubernetes.io/force-ssl-redirect", "true")
+
+	// Add server-alias annotation with location-based hostname and service aliases
+	if b.config.Location != "" {
+		serverAliases := []string{}
+		// Add primary domain with location pattern
+		serverAliases = append(serverAliases, fmt.Sprintf(".%s.node.%s", b.config.Location, service.Spec.Domain))
+		// Add host aliases if present
+		for _, alias := range service.Spec.HostAliases {
+			serverAliases = append(serverAliases, fmt.Sprintf(".%s.node.%s", b.config.Location, alias.Name))
+		}
+		b.WithAnnotation("nginx.ingress.kubernetes.io/server-alias", strings.Join(serverAliases, ","))
+	}
 
 	if service.Spec.Certificate.Crt != "" && service.Spec.Certificate.Key != "" {
 		b.WithTls([]networkingv1.IngressTLS{

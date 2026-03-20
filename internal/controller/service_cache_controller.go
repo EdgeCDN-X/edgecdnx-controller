@@ -41,6 +41,7 @@ type ServiceCacheReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	SecureUrlsEndpoint string
+	Location           string
 }
 
 // move the current state of the cluster closer to the desired state.
@@ -246,6 +247,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Ingress Resource
 		ingressBuilder := builder.NewCacheIngressBuilder(service.Name, service.Namespace, builder.CacheIngressBuilderConfig{
 			SecureUrlsEndpoint: r.SecureUrlsEndpoint,
+			Location:           r.Location,
 		})
 
 		ingressBuilder.WithService(*service)
