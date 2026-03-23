@@ -21,6 +21,7 @@ package v1alpha1
 // with apply.
 type NodeGroupSpecApplyConfiguration struct {
 	Name         *string                            `json:"name,omitempty"`
+	Flavor       *string                            `json:"flavor,omitempty"`
 	Nodes        []NodeSpecApplyConfiguration       `json:"nodes,omitempty"`
 	CacheConfig  *CacheConfigSpecApplyConfiguration `json:"cacheConfig,omitempty"`
 	NodeSelector map[string]string                  `json:"nodeSelector,omitempty"`
@@ -37,6 +38,14 @@ func NodeGroupSpec() *NodeGroupSpecApplyConfiguration {
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *NodeGroupSpecApplyConfiguration) WithName(value string) *NodeGroupSpecApplyConfiguration {
 	b.Name = &value
+	return b
+}
+
+// WithFlavor sets the Flavor field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Flavor field is set to the value of the last call.
+func (b *NodeGroupSpecApplyConfiguration) WithFlavor(value string) *NodeGroupSpecApplyConfiguration {
+	b.Flavor = &value
 	return b
 }
 

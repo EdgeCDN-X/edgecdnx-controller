@@ -72,8 +72,10 @@ type CacheConfigSpec struct {
 }
 
 type NodeGroupSpec struct {
-	// Name is the name of the node group.
+	// Name is the name of the node group. - this mostly identifies the Cache type and does not have to be unique across node groups within a location. For example, multiple node groups with the same cache type can be created for redundancy.
 	Name string `json:"name"`
+	// Flavor further distinguishes the node group. This can be used to specify different cache flavors (e.g., different Nginx versions or configurations) within the same cache type. The combination of Name and Flavor should be unique within a location to avoid ambiguity.
+	Flavor string `json:"flavor,omitempty"`
 	// Nodes is the list of nodes that are part of this node group. If used in this context Caches are ignored in NodeSpec.
 	// +listType=map
 	// +listMapKey=name

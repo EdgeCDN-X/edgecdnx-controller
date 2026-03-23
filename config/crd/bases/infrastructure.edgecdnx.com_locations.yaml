@@ -112,8 +112,18 @@ spec:
                       - maxSize
                       - path
                       type: object
+                    flavor:
+                      description: Flavor further distinguishes the node group. This
+                        can be used to specify different cache flavors (e.g., different
+                        Nginx versions or configurations) within the same cache type.
+                        The combination of Name and Flavor should be unique within
+                        a location to avoid ambiguity.
+                      type: string
                     name:
-                      description: Name is the name of the node group.
+                      description: Name is the name of the node group. - this mostly
+                        identifies the Cache type and does not have to be unique across
+                        node groups within a location. For example, multiple node
+                        groups with the same cache type can be created for redundancy.
                       type: string
                     nodeSelector:
                       additionalProperties:
