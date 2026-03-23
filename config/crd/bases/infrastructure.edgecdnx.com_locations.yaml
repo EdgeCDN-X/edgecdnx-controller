@@ -165,11 +165,13 @@ spec:
                       x-kubernetes-list-type: map
                   required:
                   - cacheConfig
+                  - flavor
                   - name
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
+                - flavor
                 x-kubernetes-list-type: map
               nodes:
                 description: Specifies the list of nodes that are part of this location.
