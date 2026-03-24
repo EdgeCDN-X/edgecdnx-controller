@@ -109,14 +109,15 @@ func (b *CacheIngressBuilder) WithService(service infrastructurev1alpha1.Service
 	proxy_cache_revalidate on;
 	proxy_cache_lock on;
 
-	{{- with .CacheKeySpec.QueryParams }}
 	access_by_lua_block {
+
+	{{- if .CacheKeySpec.QueryParams }}
 		local h, err = ngx.req.get_uri_args()
-		local allowed_headers = { {{ range . }}"{{ . }}",{{ end }} }
+		local allowed_query_params = { {{ range .CacheKeySpec.QueryParams }}"{{ . }}",{{ end }} }
 
 		for k, v in pairs(h) do
 			local found = false
-			for _, allowed in ipairs(allowed_headers) do
+			for _, allowed in ipairs(allowed_query_params) do
 				if k == allowed then
 					found = true
 					break
@@ -126,10 +127,12 @@ func (b *CacheIngressBuilder) WithService(service infrastructurev1alpha1.Service
 				h[k] = nil
 			end
 		end
+	{{- else }}
+		local h = {}
+	{{- end }}
 
 		ngx.req.set_uri_args(h)
 	}
-	{{- end }}
 
 	proxy_cache_key $proxy_host$uri$is_args$args;
 	add_header X-Cache-Key $proxy_host$uri$is_args$args;
