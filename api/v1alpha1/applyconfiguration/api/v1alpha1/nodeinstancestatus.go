@@ -20,7 +20,8 @@ package v1alpha1
 // NodeInstanceStatusApplyConfiguration represents a declarative configuration of the NodeInstanceStatus type for use
 // with apply.
 type NodeInstanceStatusApplyConfiguration struct {
-	Conditions []NodeConditionApplyConfiguration `json:"conditions,omitempty"`
+	Conditions []NodeConditionApplyConfiguration         `json:"conditions,omitempty"`
+	Alerts     []PrometheusAlertStatusApplyConfiguration `json:"alerts,omitempty"`
 }
 
 // NodeInstanceStatusApplyConfiguration constructs a declarative configuration of the NodeInstanceStatus type for use with
@@ -38,6 +39,19 @@ func (b *NodeInstanceStatusApplyConfiguration) WithConditions(values ...*NodeCon
 			panic("nil value passed to WithConditions")
 		}
 		b.Conditions = append(b.Conditions, *values[i])
+	}
+	return b
+}
+
+// WithAlerts adds the given value to the Alerts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Alerts field.
+func (b *NodeInstanceStatusApplyConfiguration) WithAlerts(values ...*PrometheusAlertStatusApplyConfiguration) *NodeInstanceStatusApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAlerts")
+		}
+		b.Alerts = append(b.Alerts, *values[i])
 	}
 	return b
 }

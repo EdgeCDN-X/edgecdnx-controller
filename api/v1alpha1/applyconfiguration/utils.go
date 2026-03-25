@@ -53,6 +53,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.NodeInstanceStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSpec"):
 		return &apiv1alpha1.NodeSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusAlertMatcherSpec"):
+		return &apiv1alpha1.PrometheusAlertMatcherSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusAlertStatus"):
+		return &apiv1alpha1.PrometheusAlertStatusApplyConfiguration{}
 
 	}
 	return nil

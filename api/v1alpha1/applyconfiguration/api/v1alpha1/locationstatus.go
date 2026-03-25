@@ -21,6 +21,7 @@ package v1alpha1
 // with apply.
 type LocationStatusApplyConfiguration struct {
 	Status     *string                                         `json:"status,omitempty"`
+	Alerts     []PrometheusAlertStatusApplyConfiguration       `json:"alerts,omitempty"`
 	NodeStatus map[string]NodeInstanceStatusApplyConfiguration `json:"nodeStatus,omitempty"`
 }
 
@@ -35,6 +36,19 @@ func LocationStatus() *LocationStatusApplyConfiguration {
 // If called multiple times, the Status field is set to the value of the last call.
 func (b *LocationStatusApplyConfiguration) WithStatus(value string) *LocationStatusApplyConfiguration {
 	b.Status = &value
+	return b
+}
+
+// WithAlerts adds the given value to the Alerts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Alerts field.
+func (b *LocationStatusApplyConfiguration) WithAlerts(values ...*PrometheusAlertStatusApplyConfiguration) *LocationStatusApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAlerts")
+		}
+		b.Alerts = append(b.Alerts, *values[i])
+	}
 	return b
 }
 

@@ -20,11 +20,12 @@ package v1alpha1
 // NodeSpecApplyConfiguration represents a declarative configuration of the NodeSpec type for use
 // with apply.
 type NodeSpecApplyConfiguration struct {
-	Name            *string  `json:"name,omitempty"`
-	Ipv4            *string  `json:"ipv4,omitempty"`
-	Ipv6            *string  `json:"ipv6,omitempty"`
-	Caches          []string `json:"caches,omitempty"`
-	MaintenanceMode *bool    `json:"maintenanceMode,omitempty"`
+	Name            *string                                        `json:"name,omitempty"`
+	Ipv4            *string                                        `json:"ipv4,omitempty"`
+	Ipv6            *string                                        `json:"ipv6,omitempty"`
+	Caches          []string                                       `json:"caches,omitempty"`
+	MaintenanceMode *bool                                          `json:"maintenanceMode,omitempty"`
+	Alerts          []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
 }
 
 // NodeSpecApplyConfiguration constructs a declarative configuration of the NodeSpec type for use with
@@ -72,5 +73,18 @@ func (b *NodeSpecApplyConfiguration) WithCaches(values ...string) *NodeSpecApply
 // If called multiple times, the MaintenanceMode field is set to the value of the last call.
 func (b *NodeSpecApplyConfiguration) WithMaintenanceMode(value bool) *NodeSpecApplyConfiguration {
 	b.MaintenanceMode = &value
+	return b
+}
+
+// WithAlerts adds the given value to the Alerts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Alerts field.
+func (b *NodeSpecApplyConfiguration) WithAlerts(values ...*PrometheusAlertMatcherSpecApplyConfiguration) *NodeSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAlerts")
+		}
+		b.Alerts = append(b.Alerts, *values[i])
+	}
 	return b
 }

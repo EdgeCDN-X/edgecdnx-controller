@@ -20,11 +20,12 @@ package v1alpha1
 // LocationSpecApplyConfiguration represents a declarative configuration of the LocationSpec type for use
 // with apply.
 type LocationSpecApplyConfiguration struct {
-	FallbackLocations []string                          `json:"fallbackLocations,omitempty"`
-	Nodes             []NodeSpecApplyConfiguration      `json:"nodes,omitempty"`
-	GeoLookup         *GeoLookupSpecApplyConfiguration  `json:"geoLookup,omitempty"`
-	MaintenanceMode   *bool                             `json:"maintenanceMode,omitempty"`
-	NodeGroups        []NodeGroupSpecApplyConfiguration `json:"nodeGroups,omitempty"`
+	FallbackLocations []string                                       `json:"fallbackLocations,omitempty"`
+	Nodes             []NodeSpecApplyConfiguration                   `json:"nodes,omitempty"`
+	GeoLookup         *GeoLookupSpecApplyConfiguration               `json:"geoLookup,omitempty"`
+	MaintenanceMode   *bool                                          `json:"maintenanceMode,omitempty"`
+	NodeGroups        []NodeGroupSpecApplyConfiguration              `json:"nodeGroups,omitempty"`
+	Alerts            []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
 }
 
 // LocationSpecApplyConfiguration constructs a declarative configuration of the LocationSpec type for use with
@@ -81,6 +82,19 @@ func (b *LocationSpecApplyConfiguration) WithNodeGroups(values ...*NodeGroupSpec
 			panic("nil value passed to WithNodeGroups")
 		}
 		b.NodeGroups = append(b.NodeGroups, *values[i])
+	}
+	return b
+}
+
+// WithAlerts adds the given value to the Alerts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Alerts field.
+func (b *LocationSpecApplyConfiguration) WithAlerts(values ...*PrometheusAlertMatcherSpecApplyConfiguration) *LocationSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAlerts")
+		}
+		b.Alerts = append(b.Alerts, *values[i])
 	}
 	return b
 }

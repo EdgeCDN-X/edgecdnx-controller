@@ -39,6 +39,25 @@ spec:
           spec:
             description: LocationSpec defines the desired state of Location.
             properties:
+              alerts:
+                description: Alerts defines location-scoped external Prometheus alerts
+                  to be reflected in status.
+                items:
+                  properties:
+                    alertName:
+                      description: AlertName is matched against the alertname label
+                        in the ALERTS series.
+                      type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: 'Labels are additional exact-match labels for selecting
+                        an alert (for example: cluster=fra1-c1).'
+                      type: object
+                  required:
+                  - alertName
+                  type: object
+                type: array
               fallbackLocations:
                 description: Specifies the list of locations that this location can
                   fall back to.
@@ -136,6 +155,25 @@ spec:
                         NodeSpec.
                       items:
                         properties:
+                          alerts:
+                            description: Alerts defines which external Prometheus
+                              alerts should be reflected for this node.
+                            items:
+                              properties:
+                                alertName:
+                                  description: AlertName is matched against the alertname
+                                    label in the ALERTS series.
+                                  type: string
+                                labels:
+                                  additionalProperties:
+                                    type: string
+                                  description: 'Labels are additional exact-match
+                                    labels for selecting an alert (for example: cluster=fra1-c1).'
+                                  type: object
+                              required:
+                              - alertName
+                              type: object
+                            type: array
                           caches:
                             description: Caches is the list of caches that are associated
                               with this node.
@@ -177,6 +215,25 @@ spec:
                 description: Specifies the list of nodes that are part of this location.
                 items:
                   properties:
+                    alerts:
+                      description: Alerts defines which external Prometheus alerts
+                        should be reflected for this node.
+                      items:
+                        properties:
+                          alertName:
+                            description: AlertName is matched against the alertname
+                              label in the ALERTS series.
+                            type: string
+                          labels:
+                            additionalProperties:
+                              type: string
+                            description: 'Labels are additional exact-match labels
+                              for selecting an alert (for example: cluster=fra1-c1).'
+                            type: object
+                        required:
+                        - alertName
+                        type: object
+                      type: array
                     caches:
                       description: Caches is the list of caches that are associated
                         with this node.
@@ -207,9 +264,62 @@ spec:
           status:
             description: LocationStatus defines the observed state of Location.
             properties:
+              alerts:
+                description: Alerts contains location-scoped alert snapshots.
+                items:
+                  properties:
+                    alertName:
+                      description: 'AlertName is the alertname label value from Prometheus
+                        (for example: KubeSchedulerDown).'
+                      type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels includes the labels associated with this
+                        alert instance.
+                      type: object
+                    lastTransitionTime:
+                      description: LastTransitionTime is when the external alert state
+                        last changed.
+                      format: date-time
+                      type: string
+                    state:
+                      enum:
+                      - firing
+                      - pending
+                      - inactive
+                      type: string
+                  type: object
+                type: array
               nodeStatus:
                 additionalProperties:
                   properties:
+                    alerts:
+                      items:
+                        properties:
+                          alertName:
+                            description: 'AlertName is the alertname label value from
+                              Prometheus (for example: KubeSchedulerDown).'
+                            type: string
+                          labels:
+                            additionalProperties:
+                              type: string
+                            description: Labels includes the labels associated with
+                              this alert instance.
+                            type: object
+                          lastTransitionTime:
+                            description: LastTransitionTime is when the external alert
+                              state last changed.
+                            format: date-time
+                            type: string
+                          state:
+                            enum:
+                            - firing
+                            - pending
+                            - inactive
+                            type: string
+                        type: object
+                      type: array
                     conditions:
                       items:
                         properties:
@@ -237,6 +347,9 @@ spec:
                   required:
                   - conditions
                   type: object
+                description: |-
+                  NodeStatus contains per-node status.
+                  For nodes in a nodeGroup, use a stable key format: <nodeGroupName>/<flavor>/<nodeName>.
                 type: object
               status:
                 enum:

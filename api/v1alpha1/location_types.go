@@ -55,6 +55,8 @@ type NodeSpec struct {
 	Caches []string `json:"caches,omitempty"`
 	// MaintenanceMode indicates if the node is in maintenance mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
+	// Alerts defines which external Prometheus alerts should be reflected for this node.
+	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
 }
 
 type CacheConfigSpec struct {
@@ -104,6 +106,15 @@ type LocationSpec struct {
 	// +listMapKey=name
 	// +listMapKey=flavor
 	NodeGroups []NodeGroupSpec `json:"nodeGroups,omitempty"`
+	// Alerts defines location-scoped external Prometheus alerts to be reflected in status.
+	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
+}
+
+type PrometheusAlertMatcherSpec struct {
+	// AlertName is matched against the alertname label in the ALERTS series.
+	AlertName string `json:"alertName"`
+	// Labels are additional exact-match labels for selecting an alert (for example: cluster=fra1-c1).
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 type NodeConditionType string
@@ -125,13 +136,29 @@ type NodeCondition struct {
 }
 
 type NodeInstanceStatus struct {
-	Conditions []NodeCondition `json:"conditions"`
+	Conditions []NodeCondition         `json:"conditions"`
+	Alerts     []PrometheusAlertStatus `json:"alerts,omitempty"`
+}
+
+type PrometheusAlertStatus struct {
+	// AlertName is the alertname label value from Prometheus (for example: KubeSchedulerDown).
+	AlertName string `json:"alertName,omitempty"`
+	// +kubebuilder:validation:Enum=firing;pending;inactive
+	State string `json:"state,omitempty"`
+	// Labels includes the labels associated with this alert instance.
+	Labels map[string]string `json:"labels,omitempty"`
+	// LastTransitionTime is when the external alert state last changed.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 // LocationStatus defines the observed state of Location.
 type LocationStatus struct {
 	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
-	Status     string                        `json:"status,omitempty"`
+	Status string `json:"status,omitempty"`
+	// Alerts contains location-scoped alert snapshots.
+	Alerts []PrometheusAlertStatus `json:"alerts,omitempty"`
+	// NodeStatus contains per-node status.
+	// For nodes in a nodeGroup, use a stable key format: <nodeGroupName>/<flavor>/<nodeName>.
 	NodeStatus map[string]NodeInstanceStatus `json:"nodeStatus,omitempty"`
 }
 
