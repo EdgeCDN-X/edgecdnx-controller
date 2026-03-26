@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	ResourceTypeLabel        = "edgecdnx.com/resource-type"
-	MonitoringTLSSecretValue = "monitoring-tls"
-	AnalyticsTLSSecretValue  = "analytics-tls"
+	ResourceTypeLabel           = "edgecdnx.com/resource-type"
+	MonitoringTLSSecretValue    = "monitoring-tls"
+	AnalyticsTLSSecretValue     = "analytics-tls"
+	HealthCheckerTLSSecretValue = "healthchecker-tls"
 )
 
 type IAppBuilder interface {
@@ -103,7 +104,7 @@ func (b *ThrowableAppBuilder) Build() (argoprojv1alpha1.Application, string, err
 	return b.app, hash, nil
 }
 
-func AppBuilderFactory(builderType string, name string, namespace string, destionation string, throwerOptions ThrowerOptions) (IAppBuilder, error) {
+func AppBuilderFactory(builderType string, name string, namespace string, destination string, throwerOptions ThrowerOptions) (IAppBuilder, error) {
 	switch builderType {
 	case MonitoringTLSSecretValue:
 		b := NewThrowableAppBuilder(name)
@@ -115,7 +116,7 @@ func AppBuilderFactory(builderType string, name string, namespace string, destio
 			ChartVersion:    throwerOptions.ThrowerChartVersion,
 			ReleaseName:     name,
 		})
-		b.WithDestination(destionation, namespace)
+		b.WithDestination(destination, throwerOptions.TargetNamespace)
 		b.WithAppMeta(name, namespace)
 		return b, nil
 	case AnalyticsTLSSecretValue:
@@ -128,7 +129,20 @@ func AppBuilderFactory(builderType string, name string, namespace string, destio
 			ChartVersion:    throwerOptions.ThrowerChartVersion,
 			ReleaseName:     name,
 		})
-		b.WithDestination(destionation, namespace)
+		b.WithDestination(destination, throwerOptions.TargetNamespace)
+		b.WithAppMeta(name, namespace)
+		return b, nil
+	case HealthCheckerTLSSecretValue:
+		b := NewThrowableAppBuilder(name)
+		// Reuse for apps too
+		b.WithProject(throwerOptions.ApplicationSetProject)
+		b.WithHelmChartParams(ChartParams{
+			ChartRepository: throwerOptions.ThrowerChartRepository,
+			ChartName:       throwerOptions.ThrowerChartName,
+			ChartVersion:    throwerOptions.ThrowerChartVersion,
+			ReleaseName:     name,
+		})
+		b.WithDestination(destination, throwerOptions.TargetNamespace)
 		b.WithAppMeta(name, namespace)
 		return b, nil
 	}
