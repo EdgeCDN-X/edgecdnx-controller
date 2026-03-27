@@ -167,6 +167,7 @@ type LocationStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:ac:generate=true
 
+// +kubebuilder:printcolumn:name="Maintenance",type=boolean,JSONPath=`.spec.maintenanceMode`
 // Location is the Schema for the locations API.
 type Location struct {
 	// +kubebuilder:ac:generate=true

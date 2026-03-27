@@ -14,7 +14,11 @@ spec:
     singular: project
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.description
+      name: Description
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Project is the Schema for the projects API.

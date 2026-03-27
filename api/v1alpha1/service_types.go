@@ -169,6 +169,12 @@ type ServiceStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:object:generate=true
+// +kubebuilder:printcolumn:name="Domain",type="string",JSONPath=".spec.domain"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.status"
+// +kubebuilder:printcolumn:name="OriginType",type="string",JSONPath=".spec.originType"
+// +kubebuilder:printcolumn:name="WafEnabled",type="string",JSONPath=".spec.waf.enabled"
+// +kubebuilder:printcolumn:name="Upstream",type="string",JSONPath=".spec.staticOrigins[0].upstream"
+// +kubebuilder:printcolumn:name="HostAliases",type="string",JSONPath=".spec.hostAliases[*].name"
 // Service is the Schema for the services API.
 type Service struct {
 	metav1.TypeMeta   `json:",inline"`

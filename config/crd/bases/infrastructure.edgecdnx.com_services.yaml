@@ -14,7 +14,26 @@ spec:
     singular: service
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.domain
+      name: Domain
+      type: string
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .spec.originType
+      name: OriginType
+      type: string
+    - jsonPath: .spec.waf.enabled
+      name: WafEnabled
+      type: string
+    - jsonPath: .spec.staticOrigins[0].upstream
+      name: Upstream
+      type: string
+    - jsonPath: .spec.hostAliases[*].name
+      name: HostAliases
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Service is the Schema for the services API.
