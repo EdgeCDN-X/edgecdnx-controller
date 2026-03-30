@@ -18,6 +18,9 @@ spec:
     - jsonPath: .spec.maintenanceMode
       name: Maintenance
       type: boolean
+    - jsonPath: .spec.parent
+      name: Parent
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -262,6 +265,16 @@ spec:
                   - name
                   type: object
                 type: array
+              parent:
+                description: This is useful for hierarchical location definitions,
+                  where child locations can inherit properties from parent locations.
+                  For example, a parent location can define common fallback locations
+                  or geo lookup attributes that are shared among multiple child locations.
+                  If Parent is specified, FallbackLocations must be empty and cannot
+                  be specified. This ensures a clear and unambiguous routing hierarchy,
+                  where child locations rely solely on their parent for fallback decisions,
+                  rather than having their own separate fallback configurations.
+                type: string
             required:
             - geoLookup
             type: object

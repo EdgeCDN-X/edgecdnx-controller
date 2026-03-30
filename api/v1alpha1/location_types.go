@@ -108,6 +108,9 @@ type LocationSpec struct {
 	NodeGroups []NodeGroupSpec `json:"nodeGroups,omitempty"`
 	// Alerts defines location-scoped external Prometheus alerts to be reflected in status.
 	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
+
+	// This is useful for hierarchical location definitions, where child locations can inherit properties from parent locations. For example, a parent location can define common fallback locations or geo lookup attributes that are shared among multiple child locations. If Parent is specified, FallbackLocations must be empty and cannot be specified. This ensures a clear and unambiguous routing hierarchy, where child locations rely solely on their parent for fallback decisions, rather than having their own separate fallback configurations.
+	Parent string `json:"parent,omitempty"`
 }
 
 type PrometheusAlertMatcherSpec struct {
@@ -168,6 +171,7 @@ type LocationStatus struct {
 // +kubebuilder:ac:generate=true
 
 // +kubebuilder:printcolumn:name="Maintenance",type=boolean,JSONPath=`.spec.maintenanceMode`
+// +kubebuilder:printcolumn:name="Parent",type=string,JSONPath=`.spec.parent`
 // Location is the Schema for the locations API.
 type Location struct {
 	// +kubebuilder:ac:generate=true
