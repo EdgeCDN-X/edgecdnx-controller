@@ -26,6 +26,7 @@ type LocationSpecApplyConfiguration struct {
 	MaintenanceMode   *bool                                          `json:"maintenanceMode,omitempty"`
 	NodeGroups        []NodeGroupSpecApplyConfiguration              `json:"nodeGroups,omitempty"`
 	Alerts            []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
+	Parent            *string                                        `json:"parent,omitempty"`
 }
 
 // LocationSpecApplyConfiguration constructs a declarative configuration of the LocationSpec type for use with
@@ -96,5 +97,13 @@ func (b *LocationSpecApplyConfiguration) WithAlerts(values ...*PrometheusAlertMa
 		}
 		b.Alerts = append(b.Alerts, *values[i])
 	}
+	return b
+}
+
+// WithParent sets the Parent field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Parent field is set to the value of the last call.
+func (b *LocationSpecApplyConfiguration) WithParent(value string) *LocationSpecApplyConfiguration {
+	b.Parent = &value
 	return b
 }
