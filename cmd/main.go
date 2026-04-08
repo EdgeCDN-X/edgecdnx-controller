@@ -42,6 +42,7 @@ import (
 
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	monv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 
@@ -65,6 +66,7 @@ func init() {
 	utilruntime.Must(v1.AddToScheme(scheme))
 	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	utilruntime.Must(acmev1.AddToScheme(scheme))
+	utilruntime.Must(monv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -96,6 +98,10 @@ func main() {
 
 	// Role
 	var role string
+	var manageMonitoringProbes bool
+	var locationProbeHealthPath string
+	var locationProbeProberURL string
+	var monitoringReleaseLabel string
 
 	// Secure URLs
 	var secureUrlsEndpoint string
@@ -123,6 +129,31 @@ func main() {
 	flag.StringVar(&role, "role", "controller",
 		"The role of this instance. Can be 'controller', runs on control plane,"+
 			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
+	flag.BoolVar(
+		&manageMonitoringProbes,
+		"manage-monitoring-probes",
+		false,
+		"If true, Location routing reconciler creates and updates monitoring Probe resources.",
+	)
+
+	flag.StringVar(
+		&locationProbeHealthPath,
+		"location-probe-health-path",
+		builder.DefaultLocationProbeHealthPath,
+		"HTTP path used for location probe targets.",
+	)
+	flag.StringVar(
+		&locationProbeProberURL,
+		"location-probe-prober-url",
+		builder.DefaultLocationProbeProberURL,
+		"Address of the blackbox prober service used by location probes.",
+	)
+	flag.StringVar(
+		&monitoringReleaseLabel,
+		"monitoring-release-label",
+		builder.DefaultMonitoringReleaseLabel,
+		"Release label applied to generated location Probe resources.",
+	)
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -417,8 +448,14 @@ func main() {
 
 	if role == RoleRouter {
 		if err = (&controller.LocationRoutingReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:                 mgr.GetClient(),
+			Scheme:                 mgr.GetScheme(),
+			ManageMonitoringProbes: manageMonitoringProbes,
+			ProbeBuilderConfig: builder.ProbeBuilderConfig{
+				LocationProbeHealthPath: locationProbeHealthPath,
+				LocationProbeProberURL:  locationProbeProberURL,
+				MonitoringReleaseLabel:  monitoringReleaseLabel,
+			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "LocationRouting")
 			os.Exit(1)

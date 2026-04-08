@@ -37,6 +37,7 @@ import (
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	monv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -81,6 +82,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = certmanagerv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = monv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
@@ -154,8 +158,9 @@ var _ = BeforeSuite(func() {
 
 	if os.Getenv("ROLE") == "router" {
 		locRoutingReconciler := &LocationRoutingReconciler{
-			Client: k8sManager.GetClient(),
-			Scheme: k8sManager.GetScheme(),
+			Client:                 k8sManager.GetClient(),
+			Scheme:                 k8sManager.GetScheme(),
+			ManageMonitoringProbes: true,
 		}
 		err = locRoutingReconciler.SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
