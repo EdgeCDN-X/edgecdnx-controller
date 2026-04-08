@@ -22,11 +22,9 @@ import (
 	"slices"
 
 	"github.com/miekg/dns"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
@@ -38,7 +36,7 @@ var zonelog = logf.Log.WithName("zone-resource")
 
 // SetupZoneWebhookWithManager registers the webhook for Zone in the manager.
 func SetupZoneWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).For(&infrastructurev1alpha1.Zone{}).
+	return ctrl.NewWebhookManagedBy(mgr, &infrastructurev1alpha1.Zone{}).
 		WithValidator(&ZoneCustomValidator{
 			Client: mgr.GetClient(),
 		}).
@@ -60,8 +58,6 @@ func SetupZoneWebhookWithManager(mgr ctrl.Manager) error {
 type ZoneCustomValidator struct {
 	Client client.Client
 }
-
-var _ webhook.CustomValidator = &ZoneCustomValidator{}
 
 func (v *ZoneCustomValidator) ValidateZoneOverlaps(ctx context.Context, zone *infrastructurev1alpha1.Zone) (admission.Warnings, error) {
 
@@ -92,34 +88,21 @@ func (v *ZoneCustomValidator) ValidateZoneOverlaps(ctx context.Context, zone *in
 }
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Zone.
-func (v *ZoneCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	zone, ok := obj.(*infrastructurev1alpha1.Zone)
-	if !ok {
-		return nil, fmt.Errorf("expected a Zone object but got %T", obj)
-	}
-	zonelog.Info("Validation for Zone upon creation", "name", zone.GetName())
-
-	return v.ValidateZoneOverlaps(ctx, zone)
+func (v *ZoneCustomValidator) ValidateCreate(ctx context.Context, obj *infrastructurev1alpha1.Zone) (admission.Warnings, error) {
+	zonelog.Info("Validation for Zone upon creation", "name", obj.GetName())
+	return v.ValidateZoneOverlaps(ctx, obj)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Zone.
-func (v *ZoneCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	zone, ok := newObj.(*infrastructurev1alpha1.Zone)
-	if !ok {
-		return nil, fmt.Errorf("expected a Zone object for the newObj but got %T", newObj)
-	}
-	zonelog.Info("Validation for Zone upon update", "name", zone.GetName())
+func (v *ZoneCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj *infrastructurev1alpha1.Zone) (admission.Warnings, error) {
+	zonelog.Info("Validation for Zone upon update", "name", newObj.GetName())
 
-	return v.ValidateZoneOverlaps(ctx, zone)
+	return v.ValidateZoneOverlaps(ctx, newObj)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Zone.
-func (v *ZoneCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	zone, ok := obj.(*infrastructurev1alpha1.Zone)
-	if !ok {
-		return nil, fmt.Errorf("expected a Zone object but got %T", obj)
-	}
-	zonelog.Info("Validation for Zone upon deletion", "name", zone.GetName())
+func (v *ZoneCustomValidator) ValidateDelete(ctx context.Context, obj *infrastructurev1alpha1.Zone) (admission.Warnings, error) {
+	zonelog.Info("Validation for Zone upon deletion", "name", obj.GetName())
 
 	services := &infrastructurev1alpha1.ServiceList{}
 	if err := v.Client.List(ctx, services); err != nil {
@@ -128,12 +111,12 @@ func (v *ZoneCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Ob
 
 	var servicesUsingZone []string
 	for _, service := range services.Items {
-		if dns.IsSubDomain(fmt.Sprintf("%s.", zone.Spec.Zone), fmt.Sprintf("%s.", service.Spec.Domain)) {
+		if dns.IsSubDomain(fmt.Sprintf("%s.", obj.Spec.Zone), fmt.Sprintf("%s.", service.Spec.Domain)) {
 			servicesUsingZone = append(servicesUsingZone, service.Name)
 		}
 
 		if slices.ContainsFunc(service.Spec.HostAliases, func(alias infrastructurev1alpha1.HostAliasSpec) bool {
-			return dns.IsSubDomain(fmt.Sprintf("%s.", zone.Spec.Zone), fmt.Sprintf("%s.", alias.Name))
+			return dns.IsSubDomain(fmt.Sprintf("%s.", obj.Spec.Zone), fmt.Sprintf("%s.", alias.Name))
 		}) {
 			servicesUsingZone = append(servicesUsingZone, service.Name)
 		}
@@ -142,9 +125,9 @@ func (v *ZoneCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Ob
 	if len(servicesUsingZone) > 0 {
 		warnings := make(admission.Warnings, 0, len(servicesUsingZone))
 		for _, service := range servicesUsingZone {
-			warnings = append(warnings, fmt.Sprintf("zone %q is still in use by service %q", zone.Spec.Zone, service))
+			warnings = append(warnings, fmt.Sprintf("zone %q is still in use by service %q", obj.Spec.Zone, service))
 		}
-		return warnings, fmt.Errorf("zone %q is still in use by services: %v", zone.Spec.Zone, servicesUsingZone)
+		return warnings, fmt.Errorf("zone %q is still in use by services: %v", obj.Spec.Zone, servicesUsingZone)
 	}
 
 	return nil, nil

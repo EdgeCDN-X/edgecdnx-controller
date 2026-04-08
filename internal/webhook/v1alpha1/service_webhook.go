@@ -23,13 +23,11 @@ import (
 	"slices"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -40,7 +38,7 @@ var servicelog = logf.Log.WithName("service-resource")
 // SetupServiceWebhookWithManager registers the webhook for Service in the manager.
 func SetupServiceWebhookWithManager(mgr ctrl.Manager, blockedUpstreamTLDs []string) error {
 
-	return ctrl.NewWebhookManagedBy(mgr).For(&infrastructurev1alpha1.Service{}).
+	return ctrl.NewWebhookManagedBy(mgr, &v1alpha1.Service{}).
 		WithValidator(&ServiceCustomValidator{
 			Client:              mgr.GetClient(),
 			BlockedUpstreamTLDs: normaliseUpstreamTLDs(blockedUpstreamTLDs),
@@ -65,8 +63,6 @@ type ServiceCustomValidator struct {
 	BlockedUpstreamTLDs []string
 }
 
-var _ webhook.CustomValidator = &ServiceCustomValidator{}
-
 func normaliseUpstreamTLDs(tlds []string) []string {
 	normalizedTLDs := make([]string, 0, len(tlds))
 	for _, tld := range tlds {
@@ -85,8 +81,8 @@ func normaliseUpstreamTLDs(tlds []string) []string {
 	return normalizedTLDs
 }
 
-func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *infrastructurev1alpha1.Service) (admission.Warnings, error) {
-	services := &infrastructurev1alpha1.ServiceList{}
+func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *v1alpha1.Service) (admission.Warnings, error) {
+	services := &v1alpha1.ServiceList{}
 	err := v.Client.List(ctx, services)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
@@ -104,7 +100,7 @@ func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *i
 
 		for _, hostAlias := range svc.Spec.HostAliases {
 			// Validate against self too
-			if slices.ContainsFunc(service.Spec.HostAliases, func(ha infrastructurev1alpha1.HostAliasSpec) bool {
+			if slices.ContainsFunc(service.Spec.HostAliases, func(ha v1alpha1.HostAliasSpec) bool {
 				if svc.Name == service.Name && svc.Namespace == service.Namespace {
 					// Do not validate against self
 					return false
@@ -210,34 +206,19 @@ func isFQDN(host string) bool {
 }
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	service, ok := obj.(*infrastructurev1alpha1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object but got %T", obj)
-	}
-	servicelog.Info("Validation for Service upon creation", "name", service.GetName())
-	return v.ValidateService(ctx, service)
+func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj *v1alpha1.Service) (admission.Warnings, error) {
+	servicelog.Info("Validation for Service upon creation", "name", obj.GetName())
+	return v.ValidateService(ctx, obj)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	service, ok := newObj.(*infrastructurev1alpha1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object for the newObj but got %T", newObj)
-	}
-	servicelog.Info("Validation for Service upon update", "name", service.GetName())
-
-	// TODO(user): fill in your validation logic upon object update.
-	return v.ValidateService(ctx, service)
+func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj *v1alpha1.Service) (admission.Warnings, error) {
+	servicelog.Info("Validation for Service upon update", "name", newObj.GetName())
+	return v.ValidateService(ctx, newObj)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Service.
-func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	service, ok := obj.(*infrastructurev1alpha1.Service)
-	if !ok {
-		return nil, fmt.Errorf("expected a Service object but got %T", obj)
-	}
-	servicelog.Info("Validation for Service upon deletion", "name", service.GetName())
-
+func (v *ServiceCustomValidator) ValidateDelete(ctx context.Context, obj *v1alpha1.Service) (admission.Warnings, error) {
+	servicelog.Info("Validation for Service upon deletion", "name", obj.GetName())
 	return nil, nil
 }
