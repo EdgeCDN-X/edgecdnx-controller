@@ -138,6 +138,7 @@ func (b *ProbeBuilder) WithLocation(location infrastructurev1alpha1.Location) {
 
 	if b.probe.Spec.Targets.StaticConfig != nil {
 		b.probe.Spec.Targets.StaticConfig.Labels["location"] = location.Name
+		b.probe.Spec.Targets.StaticConfig.Labels["endpoint"] = "location"
 	}
 }
 
