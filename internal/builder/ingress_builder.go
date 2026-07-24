@@ -159,7 +159,7 @@ location /.edgecdnx/healthz {
 }
 	`)
 
-	if service.Spec.Cors != nil {
+	if service.Spec.Cors != (infrastructurev1alpha1.CorsSpec{}) {
 		b.WithAnnotation("nginx.ingress.kubernetes.io/enable-cors", "true")
 
 		if service.Spec.Cors.AllowMethods != "" {
