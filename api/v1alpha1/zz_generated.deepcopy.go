@@ -859,11 +859,7 @@ func (in *ServiceSpec) DeepCopyInto(out *ServiceSpec) {
 		copy(*out, *in)
 	}
 	out.Waf = in.Waf
-	if in.Cors != nil {
-		in, out := &in.Cors, &out.Cors
-		*out = new(CorsSpec)
-		**out = **in
-	}
+	out.Cors = in.Cors
 	in.Path.DeepCopyInto(&out.Path)
 }
 

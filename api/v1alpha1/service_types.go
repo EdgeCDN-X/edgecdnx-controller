@@ -164,8 +164,9 @@ type ServiceSpec struct {
 
 	// WAF configuration
 	Waf WafSpec `json:"waf"`
+
 	// CORS configuration for the generated ingress. When unset, CORS annotations are not configured.
-	Cors *CorsSpec `json:"cors,omitempty"`
+	Cors CorsSpec `json:"cors,omitempty"`
 
 	// Path Configuration. If not set defaults to /
 	Path PathSpec `json:"path,omitempty"`
