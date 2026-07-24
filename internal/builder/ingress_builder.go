@@ -159,11 +159,20 @@ location /.edgecdnx/healthz {
 }
 	`)
 
-	// TODO add cors configuration to the service itself instead of hardcoding it here
-	b.WithAnnotation("nginx.ingress.kubernetes.io/enable-cors", "true")
-	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-methods", "GET,OPTIONS,HEAD")
-	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-origin", "*")
-	b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-credentials", "true")
+	if service.Spec.Cors != nil {
+		b.WithAnnotation("nginx.ingress.kubernetes.io/enable-cors", "true")
+
+		if service.Spec.Cors.AllowMethods != "" {
+			b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-methods", service.Spec.Cors.AllowMethods)
+		}
+
+		if service.Spec.Cors.AllowOrigin != "" {
+			b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-origin", service.Spec.Cors.AllowOrigin)
+		}
+
+		b.WithAnnotation("nginx.ingress.kubernetes.io/cors-allow-credentials", fmt.Sprintf("%t", service.Spec.Cors.AllowCredentials))
+	}
+
 	b.WithAnnotation("nginx.ingress.kubernetes.io/force-ssl-redirect", "true")
 
 	if service.Spec.Certificate.Crt != "" && service.Spec.Certificate.Key != "" {

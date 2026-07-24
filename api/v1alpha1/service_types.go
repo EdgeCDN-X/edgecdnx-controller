@@ -99,6 +99,15 @@ type WafSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+type CorsSpec struct {
+	// Comma-separated list of allowed methods
+	AllowMethods string `json:"allowMethods,omitempty"`
+	// Comma-separated list of allowed origins
+	AllowOrigin string `json:"allowOrigin,omitempty"`
+	// Enables or disables credential sharing
+	AllowCredentials bool `json:"allowCredentials,omitempty"`
+}
+
 type HostAliasSpec struct {
 	// Host Alias Name
 	Name string `json:"name"`
@@ -155,6 +164,8 @@ type ServiceSpec struct {
 
 	// WAF configuration
 	Waf WafSpec `json:"waf"`
+	// CORS configuration for the generated ingress. When unset, CORS annotations are not configured.
+	Cors *CorsSpec `json:"cors,omitempty"`
 
 	// Path Configuration. If not set defaults to /
 	Path PathSpec `json:"path,omitempty"`

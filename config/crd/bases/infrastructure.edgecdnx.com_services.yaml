@@ -96,6 +96,20 @@ spec:
                     description: Specifies the Secret Object Reference for the certificate
                     type: string
                 type: object
+              cors:
+                description: CORS configuration for the generated ingress. When unset,
+                  CORS annotations are not configured.
+                properties:
+                  allowCredentials:
+                    description: Enables or disables credential sharing
+                    type: boolean
+                  allowMethods:
+                    description: Comma-separated list of allowed methods
+                    type: string
+                  allowOrigin:
+                    description: Comma-separated list of allowed origins
+                    type: string
+                type: object
               customer:
                 description: Defines the customer details for the service
                 properties:
