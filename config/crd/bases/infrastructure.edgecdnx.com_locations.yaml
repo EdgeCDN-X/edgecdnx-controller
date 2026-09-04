@@ -112,8 +112,9 @@ spec:
                 items:
                   properties:
                     cacheConfig:
-                      description: CacheConfig is the cache configuration for this
-                        node group.
+                      description: |-
+                        CacheConfig is the cache configuration for this node group.
+                        Deprecated: use Metadata instead.
                       properties:
                         inactive:
                           description: Inactive is the inactive time for the cache.
@@ -145,6 +146,12 @@ spec:
                         The combination of Name and Flavor should be unique within
                         a location to avoid ambiguity.
                       type: string
+                    metadata:
+                      additionalProperties:
+                        type: string
+                      description: Metadata is a generic key-value map for cache configuration,
+                        replacing CacheConfig.
+                      type: object
                     name:
                       description: Name is the name of the node group. - this mostly
                         identifies the Cache type and does not have to be unique across
@@ -209,7 +216,6 @@ spec:
                       - name
                       x-kubernetes-list-type: map
                   required:
-                  - cacheConfig
                   - flavor
                   - name
                   type: object

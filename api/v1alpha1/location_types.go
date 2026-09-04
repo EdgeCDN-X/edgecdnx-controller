@@ -59,6 +59,7 @@ type NodeSpec struct {
 	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
 }
 
+// Deprecated: use NodeGroupSpec.Metadata instead.
 type CacheConfigSpec struct {
 	// Name is the name of the cache.
 	// Deprecated. Cache Name corresponds to nodeGroup Name
@@ -83,7 +84,11 @@ type NodeGroupSpec struct {
 	// +listMapKey=name
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// CacheConfig is the cache configuration for this node group.
-	CacheConfig CacheConfigSpec `json:"cacheConfig"`
+	// Deprecated: use Metadata instead.
+	CacheConfig CacheConfigSpec `json:"cacheConfig,omitempty"`
+
+	// Metadata is a generic key-value map for cache configuration, replacing CacheConfig.
+	Metadata map[string]string `json:"metadata,omitempty"`
 
 	// NodeSelector to apply to the daemonset
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`

@@ -24,6 +24,7 @@ type NodeGroupSpecApplyConfiguration struct {
 	Flavor       *string                            `json:"flavor,omitempty"`
 	Nodes        []NodeSpecApplyConfiguration       `json:"nodes,omitempty"`
 	CacheConfig  *CacheConfigSpecApplyConfiguration `json:"cacheConfig,omitempty"`
+	Metadata     map[string]string                  `json:"metadata,omitempty"`
 	NodeSelector map[string]string                  `json:"nodeSelector,omitempty"`
 }
 
@@ -67,6 +68,20 @@ func (b *NodeGroupSpecApplyConfiguration) WithNodes(values ...*NodeSpecApplyConf
 // If called multiple times, the CacheConfig field is set to the value of the last call.
 func (b *NodeGroupSpecApplyConfiguration) WithCacheConfig(value *CacheConfigSpecApplyConfiguration) *NodeGroupSpecApplyConfiguration {
 	b.CacheConfig = value
+	return b
+}
+
+// WithMetadata puts the entries into the Metadata field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the Metadata field,
+// overwriting an existing map entries in Metadata field with the same key.
+func (b *NodeGroupSpecApplyConfiguration) WithMetadata(entries map[string]string) *NodeGroupSpecApplyConfiguration {
+	if b.Metadata == nil && len(entries) > 0 {
+		b.Metadata = make(map[string]string, len(entries))
+	}
+	for k, v := range entries {
+		b.Metadata[k] = v
+	}
 	return b
 }
 

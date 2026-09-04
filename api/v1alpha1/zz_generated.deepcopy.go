@@ -354,6 +354,13 @@ func (in *NodeGroupSpec) DeepCopyInto(out *NodeGroupSpec) {
 		}
 	}
 	out.CacheConfig = in.CacheConfig
+	if in.Metadata != nil {
+		in, out := &in.Metadata, &out.Metadata
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
 		*out = make(map[string]string, len(*in))
