@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -57,6 +58,8 @@ type NodeSpec struct {
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 	// Alerts defines which external Prometheus alerts should be reflected for this node.
 	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
+	// HealthCheck references the HealthCheckProfile object applied to this node.
+	HealthCheck *corev1.LocalObjectReference `json:"healthCheck,omitempty"`
 }
 
 // Deprecated: use NodeGroupSpec.Metadata instead.
@@ -92,6 +95,9 @@ type NodeGroupSpec struct {
 
 	// NodeSelector to apply to the daemonset
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// HealthCheck references the HealthCheckProfile object applied to this node group.
+	HealthCheck *corev1.LocalObjectReference `json:"healthCheck,omitempty"`
 }
 
 // LocationSpec defines the desired state of Location.

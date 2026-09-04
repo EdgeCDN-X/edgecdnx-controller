@@ -146,6 +146,21 @@ spec:
                         The combination of Name and Flavor should be unique within
                         a location to avoid ambiguity.
                       type: string
+                    healthCheck:
+                      description: HealthCheck references the HealthCheckProfile object
+                        applied to this node group.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
                     metadata:
                       additionalProperties:
                         type: string
@@ -195,6 +210,21 @@ spec:
                               type: string
                             type: array
                             x-kubernetes-list-type: set
+                          healthCheck:
+                            description: HealthCheck references the HealthCheckProfile
+                              object applied to this node.
+                            properties:
+                              name:
+                                default: ""
+                                description: |-
+                                  Name of the referent.
+                                  This field is effectively required, but due to backwards compatibility is
+                                  allowed to be empty. Instances of this type with an empty value here are
+                                  almost certainly wrong.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
                           ipv4:
                             description: Ipv4 is the IPv4 address of the node.
                             type: string
@@ -254,6 +284,21 @@ spec:
                         type: string
                       type: array
                       x-kubernetes-list-type: set
+                    healthCheck:
+                      description: HealthCheck references the HealthCheckProfile object
+                        applied to this node.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
                     ipv4:
                       description: Ipv4 is the IPv4 address of the node.
                       type: string

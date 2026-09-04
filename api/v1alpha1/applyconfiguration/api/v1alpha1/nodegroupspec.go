@@ -17,6 +17,10 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/api/core/v1"
+)
+
 // NodeGroupSpecApplyConfiguration represents a declarative configuration of the NodeGroupSpec type for use
 // with apply.
 type NodeGroupSpecApplyConfiguration struct {
@@ -26,6 +30,7 @@ type NodeGroupSpecApplyConfiguration struct {
 	CacheConfig  *CacheConfigSpecApplyConfiguration `json:"cacheConfig,omitempty"`
 	Metadata     map[string]string                  `json:"metadata,omitempty"`
 	NodeSelector map[string]string                  `json:"nodeSelector,omitempty"`
+	HealthCheck  *v1.LocalObjectReference           `json:"healthCheck,omitempty"`
 }
 
 // NodeGroupSpecApplyConfiguration constructs a declarative configuration of the NodeGroupSpec type for use with
@@ -96,5 +101,13 @@ func (b *NodeGroupSpecApplyConfiguration) WithNodeSelector(entries map[string]st
 	for k, v := range entries {
 		b.NodeSelector[k] = v
 	}
+	return b
+}
+
+// WithHealthCheck sets the HealthCheck field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HealthCheck field is set to the value of the last call.
+func (b *NodeGroupSpecApplyConfiguration) WithHealthCheck(value v1.LocalObjectReference) *NodeGroupSpecApplyConfiguration {
+	b.HealthCheck = &value
 	return b
 }

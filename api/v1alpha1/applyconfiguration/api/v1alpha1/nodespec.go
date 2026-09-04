@@ -17,6 +17,10 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/api/core/v1"
+)
+
 // NodeSpecApplyConfiguration represents a declarative configuration of the NodeSpec type for use
 // with apply.
 type NodeSpecApplyConfiguration struct {
@@ -26,6 +30,7 @@ type NodeSpecApplyConfiguration struct {
 	Caches          []string                                       `json:"caches,omitempty"`
 	MaintenanceMode *bool                                          `json:"maintenanceMode,omitempty"`
 	Alerts          []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
+	HealthCheck     *v1.LocalObjectReference                       `json:"healthCheck,omitempty"`
 }
 
 // NodeSpecApplyConfiguration constructs a declarative configuration of the NodeSpec type for use with
@@ -86,5 +91,13 @@ func (b *NodeSpecApplyConfiguration) WithAlerts(values ...*PrometheusAlertMatche
 		}
 		b.Alerts = append(b.Alerts, *values[i])
 	}
+	return b
+}
+
+// WithHealthCheck sets the HealthCheck field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HealthCheck field is set to the value of the last call.
+func (b *NodeSpecApplyConfiguration) WithHealthCheck(value v1.LocalObjectReference) *NodeSpecApplyConfiguration {
+	b.HealthCheck = &value
 	return b
 }
