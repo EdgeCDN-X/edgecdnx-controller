@@ -54,6 +54,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - healthcheckprofiles
   - locations
   - prefixlists
   - services
@@ -69,6 +70,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - healthcheckprofiles/finalizers
   - locations/finalizers
   - prefixlists/finalizers
   - services/finalizers
@@ -78,6 +80,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - healthcheckprofiles/status
   - locations/status
   - prefixlists/status
   - services/status

@@ -1,0 +1,33 @@
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: HealthCheckProfile
+metadata:
+  labels:
+    app.kubernetes.io/name: edgecdnx-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: healthcheckprofile-sample
+spec:
+  probes:
+    - name: tcp-default
+      type: TCP
+      interval: 30s
+      timeout: 5s
+      tcp:
+        port: 80
+    - name: http-ready
+      type: HTTP
+      interval: 30s
+      timeout: 5s
+      http:
+        port: 80
+        path: /healthz
+    - name: https-ready
+      type: HTTPS
+      interval: 30s
+      timeout: 5s
+      https:
+        port: 443
+        path: /healthz
+    - name: assumed-healthy
+      type: ASSUME
+      assume:
+        status: Healthy

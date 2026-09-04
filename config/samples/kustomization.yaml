@@ -5,4 +5,5 @@ resources:
 - infrastructure_v1alpha1_prefixlist.yaml
 - infrastructure_v1alpha1_project.yaml
 - infrastructure_v1alpha1_zone.yaml
+- infrastructure_v1alpha1_healthcheckprofile.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

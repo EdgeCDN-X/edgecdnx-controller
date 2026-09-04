@@ -1,0 +1,162 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: healthcheckprofiles.infrastructure.edgecdnx.com
+spec:
+  group: infrastructure.edgecdnx.com
+  names:
+    kind: HealthCheckProfile
+    listKind: HealthCheckProfileList
+    plural: healthcheckprofiles
+    singular: healthcheckprofile
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: HealthCheckProfile is the Schema for the healthcheckprofiles
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: HealthCheckProfileSpec defines the desired state of HealthCheckProfile.
+            properties:
+              probes:
+                description: Probes defines the healthchecks that can be applied to
+                  locations or nodes.
+                items:
+                  description: HealthCheckProbeSpec defines one probe in a healthcheck
+                    profile.
+                  properties:
+                    assume:
+                      description: Assume configures static health. Used when type
+                        is ASSUME.
+                      properties:
+                        status:
+                          description: Status is the health value returned without
+                            performing an active healthcheck.
+                          enum:
+                          - Healthy
+                          - Unhealthy
+                          type: string
+                      required:
+                      - status
+                      type: object
+                    http:
+                      description: HTTP configures HTTP probes. Used when type is
+                        HTTP.
+                      properties:
+                        host:
+                          description: Host is the optional Host header used for the
+                            healthcheck request.
+                          type: string
+                        path:
+                          default: /
+                          description: Path is the request path used for the healthcheck.
+                          type: string
+                        port:
+                          description: Port is the HTTP or HTTPS port to connect to.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                      required:
+                      - port
+                      type: object
+                    https:
+                      description: HTTPS configures HTTPS probes. Used when type is
+                        HTTPS.
+                      properties:
+                        host:
+                          description: Host is the optional Host header used for the
+                            healthcheck request.
+                          type: string
+                        path:
+                          default: /
+                          description: Path is the request path used for the healthcheck.
+                          type: string
+                        port:
+                          description: Port is the HTTP or HTTPS port to connect to.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                      required:
+                      - port
+                      type: object
+                    interval:
+                      description: Interval is how often the probe runs.
+                      type: string
+                    name:
+                      description: Name is the unique probe name within this profile.
+                      type: string
+                    tcp:
+                      description: TCP configures TCP probes. Used when type is TCP.
+                      properties:
+                        port:
+                          description: Port is the TCP port to connect to.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                      required:
+                      - port
+                      type: object
+                    timeout:
+                      description: Timeout is how long to wait for a probe result
+                        before treating it as failed.
+                      type: string
+                    type:
+                      description: Type determines which probe configuration is used.
+                      enum:
+                      - TCP
+                      - HTTP
+                      - HTTPS
+                      - ASSUME
+                      type: string
+                  required:
+                  - name
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: tcp must be set only when type is TCP
+                    rule: 'self.type == ''TCP'' ? has(self.tcp) : !has(self.tcp)'
+                  - message: http must be set only when type is HTTP
+                    rule: 'self.type == ''HTTP'' ? has(self.http) : !has(self.http)'
+                  - message: https must be set only when type is HTTPS
+                    rule: 'self.type == ''HTTPS'' ? has(self.https) : !has(self.https)'
+                  - message: assume must be set only when type is ASSUME
+                    rule: 'self.type == ''ASSUME'' ? has(self.assume) : !has(self.assume)'
+                minItems: 1
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+            type: object
+          status:
+            description: HealthCheckProfileStatus defines the observed state of HealthCheckProfile.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

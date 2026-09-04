@@ -22,6 +22,9 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the {{ .ProjectName }} itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
+- healthcheckprofile_admin_role.yaml
+- healthcheckprofile_editor_role.yaml
+- healthcheckprofile_viewer_role.yaml
 - zone_admin_role.yaml
 - zone_editor_role.yaml
 - zone_viewer_role.yaml
