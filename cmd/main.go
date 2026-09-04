@@ -347,6 +347,23 @@ func main() {
 		}
 	}
 
+	if role == RoleController {
+		if err = (&controller.HealthCheckProfileReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			ThrowerOptions: builder.ThrowerOptions{
+				ThrowerChartName:       throwerChartName,
+				ThrowerChartVersion:    throwerChartVersion,
+				ThrowerChartRepository: throwerChartRepository,
+				TargetNamespace:        infrastructureTargetNamespace,
+				ApplicationSetProject:  infrastructureApplicationSetProject,
+			},
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HealthCheckProfile")
+			os.Exit(1)
+		}
+	}
+
 	// Test - Done
 	if role == RoleController {
 		if err = (&controller.ZoneReconciler{

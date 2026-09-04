@@ -154,6 +154,13 @@ spec:
             type: object
           status:
             description: HealthCheckProfileStatus defines the observed state of HealthCheckProfile.
+            properties:
+              status:
+                enum:
+                - Healthy
+                - Progressing
+                - Degraded
+                type: string
             type: object
         type: object
     served: true

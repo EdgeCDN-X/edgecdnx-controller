@@ -257,6 +257,27 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 			},
 		})
 		return b, nil
+	case "HealthCheckProfile":
+		b := NewThrowableAppsetBuilder(name)
+		b.WithHelmChartParams(ChartParams{
+			ChartRepository: throwerOption.ThrowerChartRepository,
+			ChartName:       throwerOption.ThrowerChartName,
+			ChartVersion:    throwerOption.ThrowerChartVersion,
+			ReleaseName:     `healthcheckprofile-{{ name }}`,
+		})
+		b.WithTargetAppMeta(fmt.Sprintf(`healthcheckprofile-%s-at-{{ name }}`, name), namespace, throwerOption.TargetNamespace)
+		b.WithProject(throwerOption.ApplicationSetProject)
+		b.WithAppsetMeta(name, namespace)
+		b.WithLabelMatchers([][]metav1.LabelSelectorRequirement{
+			{
+				{
+					Key:      "edgecdnx.com/routing",
+					Operator: metav1.LabelSelectorOpIn,
+					Values:   []string{"true", "yes"},
+				},
+			},
+		})
+		return b, nil
 	default:
 		return nil, fmt.Errorf("unknown builder type: %s", builderType)
 	}

@@ -102,8 +102,8 @@ type HealthCheckProfileSpec struct {
 
 // HealthCheckProfileStatus defines the observed state of HealthCheckProfile.
 type HealthCheckProfileStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Enum=Healthy;Progressing;Degraded
+	Status string `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
