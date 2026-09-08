@@ -21,11 +21,15 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"strings"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	ctrl "sigs.k8s.io/controller-runtime"
 	sigsbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,6 +54,63 @@ const ConsoliadtionStatusConsolidated = "Consolidated"
 const ConsoliadtionStatusConsolidating = "Consolidating"
 
 const SourceController = "Controller"
+
+func generatedPrefixListName(destination string, labels map[string]string) string {
+	baseName := fmt.Sprintf("%s-generated", destination)
+	if len(labels) == 0 && len(baseName) <= validation.DNS1123SubdomainMaxLength {
+		return baseName
+	}
+
+	groupJSON, _ := json.Marshal(struct {
+		Destination string            `json:"destination"`
+		Labels      map[string]string `json:"labels,omitempty"`
+	}{
+		Destination: destination,
+		Labels:      labels,
+	})
+	groupHash := md5.Sum(groupJSON)
+	suffix := fmt.Sprintf("-generated-%x", groupHash[:8])
+	maxDestinationLength := validation.DNS1123SubdomainMaxLength - len(suffix)
+	destination = strings.TrimRight(destination[:min(len(destination), maxDestinationLength)], "-.")
+	return destination + suffix
+}
+
+func (r *PrefixListReconciler) removeFromOtherGeneratedPrefixLists(ctx context.Context, prefixList *infrastructurev1alpha1.PrefixList, generatedName string) error {
+	generatedPrefixLists := &infrastructurev1alpha1.PrefixListList{}
+	if err := r.List(ctx, generatedPrefixLists, client.InNamespace(prefixList.Namespace)); err != nil {
+		return err
+	}
+
+	for i := range generatedPrefixLists.Items {
+		generatedPrefixList := &generatedPrefixLists.Items[i]
+		if generatedPrefixList.Spec.Source != SourceController || generatedPrefixList.Name == generatedName {
+			continue
+		}
+
+		containsOwnerReference, err := controllerutil.HasOwnerReference(generatedPrefixList.OwnerReferences, prefixList, r.Scheme)
+		if err != nil {
+			return err
+		}
+		if !containsOwnerReference {
+			continue
+		}
+
+		if err := controllerutil.RemoveOwnerReference(prefixList, generatedPrefixList, r.Scheme); err != nil {
+			return err
+		}
+		if len(generatedPrefixList.OwnerReferences) == 0 {
+			if err := r.Delete(ctx, generatedPrefixList); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+			continue
+		}
+		if err := r.Update(ctx, generatedPrefixList); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrastructurev1alpha1.PrefixList, ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -130,7 +191,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 
 	if prefixList.Status != (infrastructurev1alpha1.PrefixListStatus{}) {
 		if prefixList.Status.Status == HealthStatusHealthy {
-			generatedName := fmt.Sprintf("%s-%s", prefixList.Spec.Destination, "generated")
+			generatedName := generatedPrefixListName(prefixList.Spec.Destination, prefixList.Labels)
 			generatedPrefixList := &infrastructurev1alpha1.PrefixList{}
 
 			err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: generatedName}, generatedPrefixList)
@@ -143,6 +204,7 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      generatedName,
 							Namespace: req.Namespace,
+							Labels:    prefixList.Labels,
 							Annotations: map[string]string{
 								builder.ValuesHashAnnotation: "",
 							},
@@ -199,6 +261,9 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 							return ctrl.Result{}, err
 						}
 
+						if !maps.Equal(ownerPrefixList.Labels, generatedPrefixList.Labels) {
+							continue
+						}
 						if ownerPrefixList.Status.Status != HealthStatusHealthy {
 							log.Info("Owner PrefixList is in progress. Waiting for it to be healthy")
 							return ctrl.Result{Requeue: true}, nil
@@ -236,6 +301,19 @@ func (r *PrefixListReconciler) handleUserPrefixList(prefixList *infrastructurev1
 				curHash, ok := generatedPrefixList.Annotations[builder.ValuesHashAnnotation]
 				if ok && curHash == fmt.Sprintf("%x", newmd5Hash) {
 					log.Info("Generated PrefixList already exists for destination with the correct config (md5-hash).")
+
+					applicationSet := &argoprojv1alpha1.ApplicationSet{}
+					err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: generatedName}, applicationSet)
+					if apierrors.IsNotFound(err) {
+						return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+					}
+					if err != nil {
+						return ctrl.Result{}, err
+					}
+					if err := r.removeFromOtherGeneratedPrefixLists(ctx, prefixList, generatedName); err != nil {
+						log.Error(err, "Failed to remove PrefixList from stale generated groups")
+						return ctrl.Result{}, err
+					}
 					return ctrl.Result{}, nil
 				}
 
