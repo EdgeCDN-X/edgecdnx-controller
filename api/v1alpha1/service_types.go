@@ -170,6 +170,9 @@ type ServiceSpec struct {
 
 	// Path Configuration. If not set defaults to /
 	Path PathSpec `json:"path,omitempty"`
+
+	// RouteSelector
+	RouteSelector *metav1.LabelSelector `json:"routeSelector,omitempty"`
 }
 
 // ServiceStatus defines the observed state of Service.
