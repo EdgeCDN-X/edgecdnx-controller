@@ -165,12 +165,44 @@ func IsCertManagerCRDsInstalled() bool {
 	return false
 }
 
-// LoadImageToKindClusterWithName loads a local docker image to the kind cluster
-func LoadImageToKindClusterWithName(name string) error {
-	cluster := "kind"
-	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
-		cluster = v
+// resolveKindClusterName determines which Kind cluster should receive the locally built image.
+// This prefers the explicit override, then the cluster associated with the active kube context,
+// and finally falls back to the only/default cluster if needed.
+func resolveKindClusterName() string {
+	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok && v != "" {
+		return v
 	}
+
+	ctxOut, err := exec.Command("kubectl", "config", "current-context").Output()
+	if err == nil {
+		contextName := strings.TrimSpace(string(ctxOut))
+		if strings.HasPrefix(contextName, "kind-") {
+			return strings.TrimPrefix(contextName, "kind-")
+		}
+	}
+
+	clustersOut, err := exec.Command("kind", "get", "clusters").Output()
+	if err == nil {
+		clusters := GetNonEmptyLines(strings.TrimSpace(string(clustersOut)))
+		if len(clusters) == 1 {
+			return clusters[0]
+		}
+		for _, cluster := range clusters {
+			if cluster == "kind" {
+				return cluster
+			}
+		}
+		if len(clusters) > 0 {
+			return clusters[0]
+		}
+	}
+
+	return "kind"
+}
+
+// LoadImageToKindClusterWithName loads a local docker image to the active kind cluster.
+func LoadImageToKindClusterWithName(name string) error {
+	cluster := resolveKindClusterName()
 	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
 	cmd := exec.Command("kind", kindOptions...)
 	_, err := Run(cmd)
