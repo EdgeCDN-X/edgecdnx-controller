@@ -102,7 +102,8 @@ func (r *SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			secretRawValue := &v1.Secret{
 				TypeMeta: secret.TypeMeta,
 				ObjectMeta: metav1.ObjectMeta{
-					Name: secret.Name,
+					Name:   secret.Name,
+					Labels: secret.Labels,
 				},
 				Data: secret.Data,
 				Type: v1.SecretTypeTLS,

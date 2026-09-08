@@ -66,7 +66,8 @@ func (r *ZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		resource := &infrastructurev1alpha1.Zone{
 			TypeMeta: zone.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name: zone.Name,
+				Name:   zone.Name,
+				Labels: zone.Labels,
 			},
 			Spec: zone.Spec,
 		}

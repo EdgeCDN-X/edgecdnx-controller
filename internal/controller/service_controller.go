@@ -71,7 +71,8 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		serviceRawResource := &infrastructurev1alpha1.Service{
 			TypeMeta: service.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name: service.Name,
+				Name:   service.Name,
+				Labels: service.Labels,
 			},
 			Spec: service.Spec,
 		}

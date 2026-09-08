@@ -66,7 +66,8 @@ func (r *HealthCheckProfileReconciler) Reconcile(ctx context.Context, req ctrl.R
 		resource := &infrastructurev1alpha1.HealthCheckProfile{
 			TypeMeta: hp.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name: hp.Name,
+				Name:   hp.Name,
+				Labels: hp.Labels,
 			},
 			Spec: hp.Spec,
 		}

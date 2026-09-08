@@ -66,7 +66,8 @@ func (r *LocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		resource := &infrastructurev1alpha1.Location{
 			TypeMeta: location.TypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name: location.Name,
+				Name:   location.Name,
+				Labels: location.Labels,
 			},
 			Spec: location.Spec,
 		}

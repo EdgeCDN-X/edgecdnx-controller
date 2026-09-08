@@ -57,7 +57,8 @@ func (r *PrefixListReconciler) reconcileArgocdApplicationSet(prefixList *infrast
 	resource := &infrastructurev1alpha1.PrefixList{
 		TypeMeta: prefixList.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
-			Name: prefixList.Name,
+			Name:   prefixList.Name,
+			Labels: prefixList.Labels,
 		},
 		Spec: prefixList.Spec,
 	}
