@@ -64,11 +64,11 @@ var _ = Describe("Location Routing Reconciler", func() {
 							Ipv4: "10.0.0.2",
 						},
 					},
-					CacheConfig: infrastructurev1alpha1.CacheConfigSpec{
-						Path:     "/var/cache/nginx",
-						KeysZone: "cache_zone:10m",
-						Inactive: "10m",
-						MaxSize:  "1Gi",
+					Metadata: map[string]string{
+						"path":     "/var/cache/nginx",
+						"keysZone": "cache_zone:10m",
+						"inactive": "10m",
+						"maxSize":  "1Gi",
 					},
 				},
 			},

@@ -320,12 +320,11 @@ var _ = Describe("Location Reconciler", func() {
 								Caches: []string{},
 							},
 						},
-						CacheConfig: infrastructurev1alpha1.CacheConfigSpec{
-							Name:     "ssd",
-							Path:     "/var/cache/ssd",
-							KeysZone: "100m",
-							Inactive: "10080m",
-							MaxSize:  "4096m",
+						Metadata: map[string]string{
+							"path":     "/var/cache/ssd",
+							"keysZone": "100m",
+							"inactive": "10080m",
+							"maxSize":  "4096m",
 						},
 						NodeSelector: map[string]string{
 							"edgecdnx.com/cache-type": "ssd",
@@ -365,11 +364,10 @@ var _ = Describe("Location Reconciler", func() {
 			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Name).To(Equal("node1"))
 			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Ipv4).To(Equal("10.0.0.2"))
 			Expect(updatedLocation.Spec.NodeGroups[0].Nodes[0].Ipv6).To(Equal("2001:db8::2"))
-			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Name).To(Equal("ssd"))
-			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Path).To(Equal("/var/cache/ssd"))
-			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.KeysZone).To(Equal("100m"))
-			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.Inactive).To(Equal("10080m"))
-			Expect(updatedLocation.Spec.NodeGroups[0].CacheConfig.MaxSize).To(Equal("4096m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Metadata).To(HaveKeyWithValue("path", "/var/cache/ssd"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Metadata).To(HaveKeyWithValue("keysZone", "100m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Metadata).To(HaveKeyWithValue("inactive", "10080m"))
+			Expect(updatedLocation.Spec.NodeGroups[0].Metadata).To(HaveKeyWithValue("maxSize", "4096m"))
 			Expect(updatedLocation.Spec.NodeGroups[0].NodeSelector).To(HaveKeyWithValue("edgecdnx.com/cache-type", "ssd"))
 			Expect(updatedLocation.Spec.GeoLookup.Weight).To(Equal(11))
 			Expect(updatedLocation.Spec.GeoLookup.Attributes).To(HaveKey("country"))
