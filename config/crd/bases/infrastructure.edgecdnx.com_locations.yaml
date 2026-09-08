@@ -161,6 +161,13 @@ spec:
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Labels are used for fine grained routing and selection of nodes within the node group.
+                        These labels are merged with the Location Object Labels when determining the effective labels for nodes within the node group.
+                      type: object
                     metadata:
                       additionalProperties:
                         type: string
@@ -204,8 +211,9 @@ spec:
                               type: object
                             type: array
                           caches:
-                            description: Caches is the list of caches that are associated
-                              with this node.
+                            description: |-
+                              Caches is the list of caches that are associated with this node.
+                              Deprecated: use NodeGroupSpec.Metadata instead.
                             items:
                               type: string
                             type: array
@@ -278,8 +286,9 @@ spec:
                         type: object
                       type: array
                     caches:
-                      description: Caches is the list of caches that are associated
-                        with this node.
+                      description: |-
+                        Caches is the list of caches that are associated with this node.
+                        Deprecated: use NodeGroupSpec.Metadata instead.
                       items:
                         type: string
                       type: array

@@ -31,6 +31,7 @@ type NodeGroupSpecApplyConfiguration struct {
 	Metadata     map[string]string                  `json:"metadata,omitempty"`
 	NodeSelector map[string]string                  `json:"nodeSelector,omitempty"`
 	HealthCheck  *v1.LocalObjectReference           `json:"healthCheck,omitempty"`
+	Labels       map[string]string                  `json:"labels,omitempty"`
 }
 
 // NodeGroupSpecApplyConfiguration constructs a declarative configuration of the NodeGroupSpec type for use with
@@ -109,5 +110,19 @@ func (b *NodeGroupSpecApplyConfiguration) WithNodeSelector(entries map[string]st
 // If called multiple times, the HealthCheck field is set to the value of the last call.
 func (b *NodeGroupSpecApplyConfiguration) WithHealthCheck(value v1.LocalObjectReference) *NodeGroupSpecApplyConfiguration {
 	b.HealthCheck = &value
+	return b
+}
+
+// WithLabels puts the entries into the Labels field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the Labels field,
+// overwriting an existing map entries in Labels field with the same key.
+func (b *NodeGroupSpecApplyConfiguration) WithLabels(entries map[string]string) *NodeGroupSpecApplyConfiguration {
+	if b.Labels == nil && len(entries) > 0 {
+		b.Labels = make(map[string]string, len(entries))
+	}
+	for k, v := range entries {
+		b.Labels[k] = v
+	}
 	return b
 }

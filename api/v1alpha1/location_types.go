@@ -53,6 +53,7 @@ type NodeSpec struct {
 	Ipv6 string `json:"ipv6,omitempty"`
 	// Caches is the list of caches that are associated with this node.
 	// +listType=set
+	// Deprecated: use NodeGroupSpec.Metadata instead.
 	Caches []string `json:"caches,omitempty"`
 	// MaintenanceMode indicates if the node is in maintenance mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
@@ -98,6 +99,10 @@ type NodeGroupSpec struct {
 
 	// HealthCheck references the HealthCheckProfile object applied to this node group.
 	HealthCheck *corev1.LocalObjectReference `json:"healthCheck,omitempty"`
+
+	// Labels are used for fine grained routing and selection of nodes within the node group.
+	// These labels are merged with the Location Object Labels when determining the effective labels for nodes within the node group.
+	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
 }
 
 // LocationSpec defines the desired state of Location.
