@@ -74,6 +74,11 @@ var _ = Describe("Manager", Ordered, func() {
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
+		By("installing dev CRDs required by the controller (ArgoCD, cert-manager, monitoring)")
+		cmd = exec.Command("make", "install-dev-crds")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to install dev CRDs")
+
 		By("deploying the controller-manager")
 		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
 		_, err = utils.Run(cmd)
@@ -99,6 +104,10 @@ var _ = Describe("Manager", Ordered, func() {
 
 		By("uninstalling CRDs")
 		cmd = exec.Command("make", "uninstall")
+		_, _ = utils.Run(cmd)
+
+		By("uninstalling dev CRDs")
+		cmd = exec.Command("make", "uninstall-dev-crds")
 		_, _ = utils.Run(cmd)
 
 		By("removing manager namespace")
