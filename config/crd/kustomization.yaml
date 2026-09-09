@@ -8,6 +8,7 @@ resources:
 - bases/infrastructure.edgecdnx.com_projects.yaml
 - bases/infrastructure.edgecdnx.com_zones.yaml
 - bases/infrastructure.edgecdnx.com_healthcheckprofiles.yaml
+- bases/infrastructure.edgecdnx.com_dnsendpoints.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

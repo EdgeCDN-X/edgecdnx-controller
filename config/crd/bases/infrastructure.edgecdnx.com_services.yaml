@@ -59,7 +59,9 @@ spec:
             description: ServiceSpec defines the desired state of Service.
             properties:
               cache:
-                description: Specifies which cache to use for the service
+                description: |-
+                  Specifies which cache to use for the service
+                  Deprecated: This field may be removed in future versions. Target node selectors are stored in RouteSelectors
                 type: string
               cacheKey:
                 description: Specifies the cache key modifiers for the service
@@ -111,7 +113,9 @@ spec:
                     type: string
                 type: object
               customer:
-                description: Defines the customer details for the service
+                description: |-
+                  Defines the customer details for the service
+                  Deprecated: This field may be removed in future versions. Customer details are stored in Annotations
                 properties:
                   id:
                     description: Specifies the customer Id. Only informational
@@ -121,7 +125,7 @@ spec:
                     type: string
                 type: object
               domain:
-                description: Domain name. Ideally the same as the service name
+                description: FQDN for the service
                 type: string
               hostAliases:
                 description: Host Aliases for the service
@@ -164,7 +168,7 @@ spec:
                     type: string
                 type: object
               name:
-                description: Service Name. Use full domain name for the service
+                description: Service Name. Descriptive name for the service
                 type: string
               originType:
                 description: Defines the Origin type for the service. s3 or static

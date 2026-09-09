@@ -1,9 +1,66 @@
 apiVersion: infrastructure.edgecdnx.com/v1alpha1
 kind: Location
 metadata:
+  name: eu
   labels:
-    app.kubernetes.io/name: edgecdnx-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: location-sample
+    edgecdnx.com/routing-instance: edgecdnx
 spec:
-  # TODO(user): Add fields here
+  fallbackLocations:
+    - us
+  geoLookup:
+    weight: 50
+    attributes:
+      geoip/continent/code:
+        weight: 1000
+        values:
+          - value: EU
+          - value: AF
+          - value: AS
+  nodeGroups:
+    - name: default
+      flavor: ""
+      nodes:
+        - name: eu-node-1
+          ipv4: 198.51.100.10
+      metadata:
+        name: default
+        path: /var/cache/default
+        keysZone: 100m
+        inactive: 10080m
+        maxSize: 256m
+      labels:
+        region: eu
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: Location
+metadata:
+  name: us
+  labels:
+    edgecdnx.com/routing-instance: edgecdnx
+spec:
+  fallbackLocations:
+    - eu
+  geoLookup:
+    weight: 50
+    attributes:
+      geoip/continent/code:
+        weight: 1000
+        values:
+          - value: NA
+          - value: SA
+          - value: OC
+          - value: AN
+  nodeGroups:
+    - name: default
+      flavor: ""
+      nodes:
+        - name: us-node-1
+          ipv4: 198.51.100.20
+      metadata:
+        name: default
+        path: /var/cache/default
+        keysZone: 100m
+        inactive: 10080m
+        maxSize: 256m
+      labels:
+        region: us

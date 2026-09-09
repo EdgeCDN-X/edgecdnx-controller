@@ -1,9 +1,15 @@
 apiVersion: infrastructure.edgecdnx.com/v1alpha1
 kind: Zone
 metadata:
-  labels:
-    app.kubernetes.io/name: edgecdnx-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: zone-sample
+  name: edgecdnx-com
 spec:
-  # TODO(user): Add fields here
+  zone: edgecdnx.com
+  email: noc.edgecdnx.com.
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: Zone
+metadata:
+  name: example-com
+spec:
+  zone: example.com
+  email: noc.example.com.

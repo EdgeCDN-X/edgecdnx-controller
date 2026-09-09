@@ -1,9 +1,41 @@
 apiVersion: infrastructure.edgecdnx.com/v1alpha1
 kind: Service
 metadata:
-  labels:
-    app.kubernetes.io/name: edgecdnx-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: service-sample
+  name: test1-edgecdnx-com
 spec:
-  # TODO(user): Add fields here
+  name: test1.edgecdnx.com
+  domain: test1.edgecdnx.com
+  originType: static
+  staticOrigins:
+    - upstream: 203.0.113.10
+      hostHeader: test1.example.com
+  hostAliases:
+    - name: test1.example.com
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx
+  certificate: {}
+  customer: {}
+  cacheKey: {}
+  waf: {}
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: Service
+metadata:
+  name: test2-edgecdnx-com
+spec:
+  name: test2.edgecdnx.com
+  domain: test2.edgecdnx.com
+  originType: static
+  staticOrigins:
+    - upstream: 203.0.113.11
+      hostHeader: test2.example.com
+  hostAliases:
+    - name: test2.example.com
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx
+  certificate: {}
+  customer: {}
+  cacheKey: {}
+  waf: {}

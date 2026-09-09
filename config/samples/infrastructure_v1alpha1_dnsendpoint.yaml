@@ -1,0 +1,51 @@
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: test1-edgecdnx-com
+spec:
+  dnsName: test1.edgecdnx.com
+  routingPolicy: Geolocation
+  recordTTL: 10
+  recordType: A
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: test1-example-com
+spec:
+  dnsName: test1.example.com
+  routingPolicy: Geolocation
+  recordTTL: 10
+  recordType: A
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: test2-edgecdnx-com
+spec:
+  dnsName: test2.edgecdnx.com
+  routingPolicy: Geolocation
+  recordTTL: 10
+  recordType: A
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx
+---
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: test2-example-com
+spec:
+  dnsName: test2.example.com
+  routingPolicy: Geolocation
+  recordTTL: 10
+  recordType: A
+  routeSelector:
+    matchLabels:
+      edgecdnx.com/routing-instance: edgecdnx

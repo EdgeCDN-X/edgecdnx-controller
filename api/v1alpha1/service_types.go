@@ -131,9 +131,9 @@ type PathSpec struct {
 
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
-	// Service Name. Use full domain name for the service
+	// Service Name. Descriptive name for the service
 	Name string `json:"name,omitempty"`
-	// Domain name. Ideally the same as the service name
+	// FQDN for the service
 	Domain string `json:"domain,omitempty"`
 	// SSL Certificate for the service
 	Certificate CertificateSpec `json:"certificate"`
@@ -149,8 +149,10 @@ type ServiceSpec struct {
 	// +kubebuilder:validation:MaxItems=2
 	SecureKeys []SecureKeySpec `json:"secureKeys,omitempty"`
 	// Defines the customer details for the service
+	// Deprecated: This field may be removed in future versions. Customer details are stored in Annotations
 	Customer CustomerSpec `json:"customer"`
 	// Specifies which cache to use for the service
+	// Deprecated: This field may be removed in future versions. Target node selectors are stored in RouteSelectors
 	Cache string `json:"cache,omitempty"`
 	// Specifies the cache key modifiers for the service
 	CacheKeySpec CacheKeySpec `json:"cacheKey"`

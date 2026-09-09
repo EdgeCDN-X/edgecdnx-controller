@@ -80,6 +80,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - dnsendpoints
   - healthcheckprofiles
   - locations
   - prefixlists
@@ -96,6 +97,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - dnsendpoints/finalizers
   - healthcheckprofiles/finalizers
   - locations/finalizers
   - prefixlists/finalizers
@@ -106,6 +108,7 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - dnsendpoints/status
   - healthcheckprofiles/status
   - locations/status
   - prefixlists/status

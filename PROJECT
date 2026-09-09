@@ -66,4 +66,13 @@ resources:
   kind: HealthCheckProfile
   path: github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: edgecdnx.com
+  group: infrastructure
+  kind: DNSEndpoint
+  path: github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1
+  version: v1alpha1
 version: "3"
