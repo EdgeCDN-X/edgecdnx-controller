@@ -13,6 +13,7 @@ endif
 # scaffolded by default. However, you might want to replace it to use other
 # tools. (i.e. podman)
 CONTAINER_TOOL ?= docker
+HELM_CRD_DIR ?= ../helm-charts/charts/edgecdnx-controller/templates/crds
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -44,6 +45,17 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+.PHONY: copy-crds-to-helm
+copy-crds-to-helm: manifests ## Copy generated CRDs to the edgecdnx-controller Helm chart.
+	mkdir -p $(HELM_CRD_DIR)
+	cp config/crd/bases/infrastructure.edgecdnx.com_dnsendpoints.yaml $(HELM_CRD_DIR)/dnsendpoints.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_healthcheckprofiles.yaml $(HELM_CRD_DIR)/healthcheckprofiles.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_locations.yaml $(HELM_CRD_DIR)/locations.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_prefixlists.yaml $(HELM_CRD_DIR)/prefixlists.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_projects.yaml $(HELM_CRD_DIR)/projects.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_services.yaml $(HELM_CRD_DIR)/services.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_zones.yaml $(HELM_CRD_DIR)/zones.infrastructure.edgecdnx.com.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
