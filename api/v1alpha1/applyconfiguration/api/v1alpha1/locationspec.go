@@ -23,6 +23,7 @@ type LocationSpecApplyConfiguration struct {
 	FallbackLocations []string                                       `json:"fallbackLocations,omitempty"`
 	Nodes             []NodeSpecApplyConfiguration                   `json:"nodes,omitempty"`
 	GeoLookup         *GeoLookupSpecApplyConfiguration               `json:"geoLookup,omitempty"`
+	Weight            *int32                                         `json:"weight,omitempty"`
 	MaintenanceMode   *bool                                          `json:"maintenanceMode,omitempty"`
 	NodeGroups        []NodeGroupSpecApplyConfiguration              `json:"nodeGroups,omitempty"`
 	Alerts            []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
@@ -63,6 +64,14 @@ func (b *LocationSpecApplyConfiguration) WithNodes(values ...*NodeSpecApplyConfi
 // If called multiple times, the GeoLookup field is set to the value of the last call.
 func (b *LocationSpecApplyConfiguration) WithGeoLookup(value *GeoLookupSpecApplyConfiguration) *LocationSpecApplyConfiguration {
 	b.GeoLookup = value
+	return b
+}
+
+// WithWeight sets the Weight field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Weight field is set to the value of the last call.
+func (b *LocationSpecApplyConfiguration) WithWeight(value int32) *LocationSpecApplyConfiguration {
+	b.Weight = &value
 	return b
 }
 

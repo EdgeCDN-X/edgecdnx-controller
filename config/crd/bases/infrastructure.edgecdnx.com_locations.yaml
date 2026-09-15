@@ -73,7 +73,9 @@ spec:
                 type: array
                 x-kubernetes-list-type: set
               geoLookup:
-                description: Specifies the geo lookup configuration for this location.
+                description: |-
+                  Specifies the geo lookup configuration for this location.
+                  Used when performing geo-based routing to determine the location of requests.
                 properties:
                   attributes:
                     additionalProperties:
@@ -335,8 +337,10 @@ spec:
                   where child locations rely solely on their parent for fallback decisions,
                   rather than having their own separate fallback configurations.
                 type: string
-            required:
-            - geoLookup
+              weight:
+                description: Used for weighted routing decisions among locations.
+                format: int32
+                type: integer
             type: object
           status:
             description: LocationStatus defines the observed state of Location.

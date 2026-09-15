@@ -114,7 +114,10 @@ type LocationSpec struct {
 	// Specifies the list of nodes that are part of this location.
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// Specifies the geo lookup configuration for this location.
-	GeoLookup GeoLookupSpec `json:"geoLookup"`
+	// Used when performing geo-based routing to determine the location of requests.
+	GeoLookup GeoLookupSpec `json:"geoLookup,omitempty"`
+	// Used for weighted routing decisions among locations.
+	Weight int32 `json:"weight,omitempty"`
 	// Sets the Location to Maintenance Mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 	// Introduces NodeGroups for location. Either Nodes or NodeGroups can be used.
