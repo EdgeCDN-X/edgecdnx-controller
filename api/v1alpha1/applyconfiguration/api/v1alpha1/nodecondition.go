@@ -26,6 +26,8 @@ import (
 // with apply.
 type NodeConditionApplyConfiguration struct {
 	Type               *apiv1alpha1.NodeConditionType `json:"type,omitempty"`
+	Stack              *apiv1alpha1.StackType         `json:"stack,omitempty"`
+	HealthCheckKey     *string                        `json:"healthCheckKey,omitempty"`
 	Status             *bool                          `json:"status,omitempty"`
 	LastTransitionTime *v1.Time                       `json:"lastTransitionTime,omitempty"`
 	Reason             *string                        `json:"reason,omitempty"`
@@ -43,6 +45,22 @@ func NodeCondition() *NodeConditionApplyConfiguration {
 // If called multiple times, the Type field is set to the value of the last call.
 func (b *NodeConditionApplyConfiguration) WithType(value apiv1alpha1.NodeConditionType) *NodeConditionApplyConfiguration {
 	b.Type = &value
+	return b
+}
+
+// WithStack sets the Stack field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Stack field is set to the value of the last call.
+func (b *NodeConditionApplyConfiguration) WithStack(value apiv1alpha1.StackType) *NodeConditionApplyConfiguration {
+	b.Stack = &value
+	return b
+}
+
+// WithHealthCheckKey sets the HealthCheckKey field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HealthCheckKey field is set to the value of the last call.
+func (b *NodeConditionApplyConfiguration) WithHealthCheckKey(value string) *NodeConditionApplyConfiguration {
+	b.HealthCheckKey = &value
 	return b
 }
 

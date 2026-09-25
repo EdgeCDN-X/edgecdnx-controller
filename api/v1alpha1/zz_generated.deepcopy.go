@@ -312,11 +312,6 @@ func (in *HealthCheckProbeSpec) DeepCopyInto(out *HealthCheckProbeSpec) {
 		*out = new(HTTPHealthCheckProbeSpec)
 		**out = **in
 	}
-	if in.HTTPS != nil {
-		in, out := &in.HTTPS, &out.HTTPS
-		*out = new(HTTPHealthCheckProbeSpec)
-		**out = **in
-	}
 	if in.Assume != nil {
 		in, out := &in.Assume, &out.Assume
 		*out = new(AssumeHealthCheckProbeSpec)

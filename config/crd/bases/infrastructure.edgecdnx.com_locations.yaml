@@ -265,7 +265,9 @@ spec:
                 - flavor
                 x-kubernetes-list-type: map
               nodes:
-                description: Specifies the list of nodes that are part of this location.
+                description: |-
+                  Specifies the list of nodes that are part of this location.
+                  Deprecated: use NodeGroups instead.
                 items:
                   properties:
                     alerts:
@@ -404,6 +406,10 @@ spec:
                     conditions:
                       items:
                         properties:
+                          healthCheckKey:
+                            description: HealthCheckKey is the key associated with
+                              the health check that produced this condition.
+                            type: string
                           lastTransitionTime:
                             format: date-time
                             type: string
@@ -413,6 +419,10 @@ spec:
                             format: int64
                             type: integer
                           reason:
+                            type: string
+                          stack:
+                            description: Stack indicates the IP stack type for this
+                              node (IPv4, IPv6, or Dual).
                             type: string
                           status:
                             description: Status

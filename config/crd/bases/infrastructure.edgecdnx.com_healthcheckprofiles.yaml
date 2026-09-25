@@ -51,6 +51,10 @@ spec:
                       description: Assume configures static health. Used when type
                         is ASSUME.
                       properties:
+                        stack:
+                          description: Stack indicates the IP stack type for this
+                            static healthcheck probe (IPv4, IPv6, or Dual).
+                          type: string
                         status:
                           description: Status is the health value returned without
                             performing an active healthcheck.
@@ -66,8 +70,8 @@ spec:
                         HTTP.
                       properties:
                         host:
-                          description: Host is the optional Host header used for the
-                            healthcheck request.
+                          description: Host header to be used with the HTTP or HTTPS
+                            request.
                           type: string
                         path:
                           default: /
@@ -79,29 +83,23 @@ spec:
                           maximum: 65535
                           minimum: 1
                           type: integer
-                      required:
-                      - port
-                      type: object
-                    https:
-                      description: HTTPS configures HTTPS probes. Used when type is
-                        HTTPS.
-                      properties:
-                        host:
-                          description: Host is the optional Host header used for the
-                            healthcheck request.
+                        protocol:
+                          description: Protocol is the HTTP protocol to use (http
+                            or https).
+                          enum:
+                          - http
+                          - https
                           type: string
-                        path:
-                          default: /
-                          description: Path is the request path used for the healthcheck.
+                        stack:
+                          description: Stack indicates the IP stack type for this
+                            HTTP or HTTPS healthcheck probe (IPv4, IPv6, or Dual).
                           type: string
-                        port:
-                          description: Port is the HTTP or HTTPS port to connect to.
-                          format: int32
-                          maximum: 65535
-                          minimum: 1
-                          type: integer
+                        target:
+                          description: Override target. If omitted, IPv4 or IPv6 will
+                            be used based from the node's IP stack.
+                          type: string
                       required:
-                      - port
+                      - protocol
                       type: object
                     interval:
                       description: Interval is how often the probe runs.
@@ -118,6 +116,19 @@ spec:
                           maximum: 65535
                           minimum: 1
                           type: integer
+                        stack:
+                          description: Stack indicates the IP stack type for this
+                            TCP healthcheck probe (IPv4, IPv6, or Dual).
+                          enum:
+                          - IPv4
+                          - IPv6
+                          - Dual
+                          type: string
+                        target:
+                          description: Target is the IP address or hostname to connect
+                            to for the TCP healthcheck. If omitted, the node's IP
+                            stack will be used.
+                          type: string
                       required:
                       - port
                       type: object
@@ -142,8 +153,6 @@ spec:
                     rule: 'self.type == ''TCP'' ? has(self.tcp) : !has(self.tcp)'
                   - message: http must be set only when type is HTTP
                     rule: 'self.type == ''HTTP'' ? has(self.http) : !has(self.http)'
-                  - message: https must be set only when type is HTTPS
-                    rule: 'self.type == ''HTTPS'' ? has(self.https) : !has(self.https)'
                   - message: assume must be set only when type is ASSUME
                     rule: 'self.type == ''ASSUME'' ? has(self.assume) : !has(self.assume)'
                 minItems: 1

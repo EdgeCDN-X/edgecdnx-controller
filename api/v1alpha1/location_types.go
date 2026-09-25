@@ -60,6 +60,7 @@ type NodeSpec struct {
 	// Alerts defines which external Prometheus alerts should be reflected for this node.
 	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
 	// HealthCheck references the HealthCheckProfile object applied to this node.
+	// TODO: Deprecate this, this is too much.
 	HealthCheck *corev1.LocalObjectReference `json:"healthCheck,omitempty"`
 }
 
@@ -112,6 +113,7 @@ type LocationSpec struct {
 	// +listType=set
 	FallbackLocations []string `json:"fallbackLocations,omitempty"`
 	// Specifies the list of nodes that are part of this location.
+	// Deprecated: use NodeGroups instead.
 	Nodes []NodeSpec `json:"nodes,omitempty"`
 	// Specifies the geo lookup configuration for this location.
 	// Used when performing geo-based routing to determine the location of requests.
@@ -144,11 +146,24 @@ type NodeConditionType string
 const (
 	IPV4HealthCheckSuccessful NodeConditionType = "IPV4HealthCheckSuccessful"
 	IPV6HealthCheckSuccessful NodeConditionType = "IPV6HealthCheckSuccessful"
+	HealthCheckSuccessful     NodeConditionType = "HealthCheckSuccessful"
+)
+
+type StackType string
+
+const (
+	StackTypeIPv4 StackType = "IPv4"
+	StackTypeIPv6 StackType = "IPv6"
+	StackTypeDual StackType = "Dual"
 )
 
 type NodeCondition struct {
 	// Condition Type
 	Type NodeConditionType `json:"type"`
+	// Stack indicates the IP stack type for this node (IPv4, IPv6, or Dual).
+	Stack StackType `json:"stack,omitempty"`
+	// HealthCheckKey is the key associated with the health check that produced this condition.
+	HealthCheckKey string `json:"healthCheckKey,omitempty"`
 	// Status
 	Status             bool        `json:"status"`
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`

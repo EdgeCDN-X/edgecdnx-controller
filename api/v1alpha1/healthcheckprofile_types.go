@@ -27,7 +27,6 @@ type HealthCheckProbeType string
 const (
 	HealthCheckProbeTypeTCP    HealthCheckProbeType = "TCP"
 	HealthCheckProbeTypeHTTP   HealthCheckProbeType = "HTTP"
-	HealthCheckProbeTypeHTTPS  HealthCheckProbeType = "HTTPS"
 	HealthCheckProbeTypeASSUME HealthCheckProbeType = "ASSUME"
 )
 
@@ -46,31 +45,44 @@ type TCPHealthCheckProbeSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port"`
+	// Target is the IP address or hostname to connect to for the TCP healthcheck. If omitted, the node's IP stack will be used.
+	Target string `json:"target,omitempty"`
+	// Stack indicates the IP stack type for this TCP healthcheck probe (IPv4, IPv6, or Dual).
+	// +kubebuilder:validation:Enum=IPv4;IPv6;Dual
+	Stack StackType `json:"stack,omitempty"`
 }
 
 // HTTPHealthCheckProbeSpec defines settings for HTTP and HTTPS healthchecks.
 type HTTPHealthCheckProbeSpec struct {
+	// Protocol is the HTTP protocol to use (http or https).
+	// +kubebuilder:validation:Enum=http;https
+	Protocol string `json:"protocol"`
 	// Port is the HTTP or HTTPS port to connect to.
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
-	Port int32 `json:"port"`
+	Port int32 `json:"port,omitempty"`
+	// Override target. If omitted, IPv4 or IPv6 will be used based from the node's IP stack.
+	Target string `json:"target,omitempty"`
 	// Path is the request path used for the healthcheck.
 	// +kubebuilder:default="/"
 	Path string `json:"path,omitempty"`
-	// Host is the optional Host header used for the healthcheck request.
+	// Host header to be used with the HTTP or HTTPS request.
 	Host string `json:"host,omitempty"`
+	// Stack indicates the IP stack type for this HTTP or HTTPS healthcheck probe (IPv4, IPv6, or Dual).
+	Stack StackType `json:"stack,omitempty"`
 }
 
 // AssumeHealthCheckProbeSpec defines settings for static healthchecks.
 type AssumeHealthCheckProbeSpec struct {
 	// Status is the health value returned without performing an active healthcheck.
 	Status AssumedHealthStatus `json:"status"`
+	// Stack indicates the IP stack type for this static healthcheck probe (IPv4, IPv6, or Dual).
+	Stack StackType `json:"stack,omitempty"`
 }
 
 // HealthCheckProbeSpec defines one probe in a healthcheck profile.
 // +kubebuilder:validation:XValidation:rule="self.type == 'TCP' ? has(self.tcp) : !has(self.tcp)",message="tcp must be set only when type is TCP"
 // +kubebuilder:validation:XValidation:rule="self.type == 'HTTP' ? has(self.http) : !has(self.http)",message="http must be set only when type is HTTP"
-// +kubebuilder:validation:XValidation:rule="self.type == 'HTTPS' ? has(self.https) : !has(self.https)",message="https must be set only when type is HTTPS"
 // +kubebuilder:validation:XValidation:rule="self.type == 'ASSUME' ? has(self.assume) : !has(self.assume)",message="assume must be set only when type is ASSUME"
 type HealthCheckProbeSpec struct {
 	// Name is the unique probe name within this profile.
@@ -85,8 +97,6 @@ type HealthCheckProbeSpec struct {
 	TCP *TCPHealthCheckProbeSpec `json:"tcp,omitempty"`
 	// HTTP configures HTTP probes. Used when type is HTTP.
 	HTTP *HTTPHealthCheckProbeSpec `json:"http,omitempty"`
-	// HTTPS configures HTTPS probes. Used when type is HTTPS.
-	HTTPS *HTTPHealthCheckProbeSpec `json:"https,omitempty"`
 	// Assume configures static health. Used when type is ASSUME.
 	Assume *AssumeHealthCheckProbeSpec `json:"assume,omitempty"`
 }
