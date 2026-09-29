@@ -229,7 +229,7 @@ func AppsetBuilderFactory(builderType string, name string, namespace string, thr
 			},
 		})
 		return b, nil
-	case "Service":
+	case Service:
 		b := NewThrowableAppsetBuilder(name)
 		b.WithHelmChartParams(ChartParams{
 			ChartRepository: throwerOption.ThrowerChartRepository,

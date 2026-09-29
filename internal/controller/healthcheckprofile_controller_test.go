@@ -82,18 +82,9 @@ var _ = Describe("HealthCheckProfile Controller", func() {
 							Interval: metav1.Duration{Duration: 30 * time.Second},
 							Timeout:  metav1.Duration{Duration: 5 * time.Second},
 							HTTP: &infrastructurev1alpha1.HTTPHealthCheckProbeSpec{
-								Port: 80,
-								Path: "/healthz",
-							},
-						},
-						{
-							Name:     "https-ready",
-							Type:     infrastructurev1alpha1.HealthCheckProbeTypeHTTPS,
-							Interval: metav1.Duration{Duration: 30 * time.Second},
-							Timeout:  metav1.Duration{Duration: 5 * time.Second},
-							HTTPS: &infrastructurev1alpha1.HTTPHealthCheckProbeSpec{
-								Port: 443,
-								Path: "/healthz",
+								Port:     80,
+								Path:     "/healthz",
+								Protocol: "https",
 							},
 						},
 						{
@@ -128,11 +119,10 @@ var _ = Describe("HealthCheckProfile Controller", func() {
 
 			createdProfile := &infrastructurev1alpha1.HealthCheckProfile{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, createdProfile)).To(Succeed())
-			Expect(createdProfile.Spec.Probes).To(HaveLen(4))
+			Expect(createdProfile.Spec.Probes).To(HaveLen(3))
 			Expect(createdProfile.Spec.Probes[0].TCP.Port).To(Equal(int32(80)))
 			Expect(createdProfile.Spec.Probes[1].HTTP.Path).To(Equal("/healthz"))
-			Expect(createdProfile.Spec.Probes[2].HTTPS.Port).To(Equal(int32(443)))
-			Expect(createdProfile.Spec.Probes[3].Assume.Status).To(Equal(infrastructurev1alpha1.AssumedHealthStatusHealthy))
+			Expect(createdProfile.Spec.Probes[2].Assume.Status).To(Equal(infrastructurev1alpha1.AssumedHealthStatusHealthy))
 		})
 
 		It("rejects a probe whose type does not match its config block", func() {
@@ -186,7 +176,7 @@ var _ = Describe("HealthCheckProfile Controller", func() {
 			Expect(values.Resources).To(HaveLen(1))
 			Expect(values.Resources[0].Name).To(Equal(resourceName))
 			Expect(values.Resources[0].Namespace).To(BeEmpty())
-			Expect(values.Resources[0].Spec.Probes).To(HaveLen(4))
+			Expect(values.Resources[0].Spec.Probes).To(HaveLen(3))
 
 			_, err = controllerReconciler.Reconcile(ctx, reconcileRequest)
 			Expect(err).NotTo(HaveOccurred())

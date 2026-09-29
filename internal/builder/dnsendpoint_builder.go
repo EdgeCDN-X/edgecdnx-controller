@@ -89,7 +89,7 @@ func (b *DefaultDNSEndpointBuilder) Build() (infrastructurev1alpha1.DNSEndpoint,
 
 func DNSEndpointBuilderFactory(builderType string, name string, namespace string) (IDNSEndpointBuilder, error) {
 	switch builderType {
-	case "Service":
+	case Service:
 		return NewDefaultDNSEndpointBuilder(name, namespace), nil
 	default:
 		return nil, fmt.Errorf("unknown builder type: %s", builderType)

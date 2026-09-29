@@ -85,7 +85,7 @@ func (b *DefaultCertBuilder) Build() (certmanagerv1.Certificate, string, error) 
 
 func CertBuilderFactory(builderType string, name string, namespace string, serviceName string, IssuerRef cmmeta.ObjectReference) (ICertificateBuilder, error) {
 	switch builderType {
-	case "Service":
+	case Service:
 		b := NewDefaultCertBuilder(name, namespace, serviceName)
 		b.WithIssuerRef(IssuerRef)
 		return b, nil
