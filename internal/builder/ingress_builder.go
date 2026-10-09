@@ -104,6 +104,9 @@ func (b *CacheIngressBuilder) WithService(service infrastructurev1alpha1.Service
 	proxy_ssl_server_name on;
 	{{- end }}
 	proxy_cache {{ .Cache }};
+	{{- if .DefaultCacheTTL }}
+	proxy_cache_valid 200 301 302 {{ .DefaultCacheTTL }};
+	{{- end }}
 	proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
 	proxy_cache_background_update on;
 	proxy_cache_revalidate on;

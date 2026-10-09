@@ -124,6 +124,15 @@ spec:
                     description: Specifies the customer name. Only informational
                     type: string
                 type: object
+              defaultCacheTtl:
+                description: |-
+                  Default cache validity for 200, 301 and 302 responses that the origin
+                  does not mark as cacheable itself (no Cache-Control, Expires or
+                  X-Accel-Expires). Origin headers always take precedence. Uses nginx time
+                  syntax, e.g. "30s", "10m", "1h", "1d". When unset, only responses the
+                  origin explicitly allows are cached.
+                pattern: ^[0-9]+(ms|s|m|h|d|w|M|y)$
+                type: string
               domain:
                 description: FQDN for the service
                 type: string
