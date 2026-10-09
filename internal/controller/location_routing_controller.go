@@ -95,10 +95,17 @@ func (r *LocationRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *LocationRoutingReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrastructurev1alpha1.Location{}).
-		Owns(&monv1.Probe{}).
-		Complete(r)
+	b := ctrl.NewControllerManagedBy(mgr).
+		For(&infrastructurev1alpha1.Location{})
+	// Only watch Probes when this controller manages them. Watching them
+	// unconditionally makes the manager wait for a monitoring.coreos.com/v1
+	// Probe informer, which never syncs on clusters without the
+	// prometheus-operator CRDs, so the router crash-loops even with
+	// --manage-monitoring-probes=false.
+	if r.ManageMonitoringProbes {
+		b = b.Owns(&monv1.Probe{})
+	}
+	return b.Complete(r)
 }
 
 func (r *LocationRoutingReconciler) reconcileLocationProbe(ctx context.Context, location *infrastructurev1alpha1.Location) error {
