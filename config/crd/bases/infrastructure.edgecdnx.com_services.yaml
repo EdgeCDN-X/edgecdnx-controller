@@ -339,11 +339,6 @@ spec:
                   enabled:
                     type: boolean
                 type: object
-            required:
-            - cacheKey
-            - certificate
-            - customer
-            - waf
             type: object
           status:
             description: ServiceStatus defines the observed state of Service.
