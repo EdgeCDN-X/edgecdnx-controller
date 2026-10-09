@@ -136,7 +136,8 @@ type ServiceSpec struct {
 	// FQDN for the service
 	Domain string `json:"domain,omitempty"`
 	// SSL Certificate for the service
-	Certificate CertificateSpec `json:"certificate"`
+	// +optional
+	Certificate CertificateSpec `json:"certificate,omitempty"`
 	// Defines the Origin type for the service. s3 or static
 	// +kubebuilder:validation:Enum=s3;static
 	OriginType string `json:"originType,omitempty"`
@@ -150,12 +151,14 @@ type ServiceSpec struct {
 	SecureKeys []SecureKeySpec `json:"secureKeys,omitempty"`
 	// Defines the customer details for the service
 	// Deprecated: This field may be removed in future versions. Customer details are stored in Annotations
-	Customer CustomerSpec `json:"customer"`
+	// +optional
+	Customer CustomerSpec `json:"customer,omitempty"`
 	// Specifies which cache to use for the service
 	// Deprecated: This field may be removed in future versions. Target node selectors are stored in RouteSelectors
 	Cache string `json:"cache,omitempty"`
 	// Specifies the cache key modifiers for the service
-	CacheKeySpec CacheKeySpec `json:"cacheKey"`
+	// +optional
+	CacheKeySpec CacheKeySpec `json:"cacheKey,omitempty"`
 
 	// Specifies the Mirror configuration for the service
 	MirrorSpec MirrorSpec `json:"mirror,omitempty"`
@@ -165,7 +168,8 @@ type ServiceSpec struct {
 	HostAliases []HostAliasSpec `json:"hostAliases,omitempty"`
 
 	// WAF configuration
-	Waf WafSpec `json:"waf"`
+	// +optional
+	Waf WafSpec `json:"waf,omitempty"`
 
 	// CORS configuration for the generated ingress. When unset, CORS annotations are not configured.
 	Cors CorsSpec `json:"cors,omitempty"`
