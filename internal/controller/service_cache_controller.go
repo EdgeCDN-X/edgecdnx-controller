@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"encoding/base64"
+	"net"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 )
 
 // ServiceCacheReconciler reconciles a Service object
@@ -57,6 +59,7 @@ type ServiceCacheReconciler struct {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch;create;update;patch;delete
 
 // nolint: gocyclo, vet
 func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -95,7 +98,7 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
-			serviceBuilder.WithUpstream(service.Spec.StaticOrigins[0].Upstream)
+			serviceBuilder.WithUpstream(service.Spec.StaticOrigins[0].Upstream, service.Spec.StaticOrigins[0].Port)
 		}
 
 		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeS3 {
@@ -132,6 +135,62 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				curService.Spec = desiredService.Spec
 				curService.SetAnnotations(desiredService.Annotations)
 				return ctrl.Result{}, r.Update(ctx, curService)
+			}
+		}
+
+		// Origin EndpointSlice. A static origin given as an IP address is served
+		// through a headless Service, which needs an EndpointSlice carrying the IP.
+		// Any other origin must not have one.
+		originSliceName := serviceName + "-origin"
+		var originIP net.IP
+		if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
+			originIP = net.ParseIP(service.Spec.StaticOrigins[0].Upstream)
+		}
+
+		curSlice := &discoveryv1.EndpointSlice{}
+		sliceErr := r.Get(ctx, client.ObjectKey{Namespace: service.Namespace, Name: originSliceName}, curSlice)
+		if sliceErr != nil && !apierrors.IsNotFound(sliceErr) {
+			log.Error(sliceErr, "unable to fetch origin EndpointSlice", "Service", service.Name)
+			return ctrl.Result{}, sliceErr
+		}
+		sliceExists := sliceErr == nil
+
+		if originIP == nil {
+			if sliceExists {
+				log.Info("Deleting origin EndpointSlice, upstream is no longer an IP", "Service", service.Name)
+				return ctrl.Result{}, r.Delete(ctx, curSlice)
+			}
+		} else {
+			sliceBuilder := builder.NewEndpointSliceBuilder(originSliceName, service.Namespace)
+			sliceBuilder.WithIPUpstream(serviceName, originIP, service.Spec.StaticOrigins[0].Port)
+			desiredSlice, sliceHash, err := sliceBuilder.Build()
+			if err != nil {
+				log.Error(err, "unable to build origin EndpointSlice", "Service", service.Name)
+				return ctrl.Result{}, err
+			}
+
+			if !sliceExists {
+				log.Info("Origin EndpointSlice not found, creating it", "Service", service.Name)
+				if err := controllerutil.SetControllerReference(service, &desiredSlice, r.Scheme); err != nil {
+					log.Error(err, "unable to set owner reference on EndpointSlice", "Service", service.Name)
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, r.Create(ctx, &desiredSlice)
+			}
+
+			curHash, ok := curSlice.Annotations[builder.ValuesHashAnnotation]
+			if !ok || curHash != sliceHash {
+				// addressType is immutable; an IPv4 <-> IPv6 switch needs a new slice.
+				if curSlice.AddressType != desiredSlice.AddressType {
+					log.Info("Recreating origin EndpointSlice, address family changed", "Service", service.Name)
+					return ctrl.Result{}, r.Delete(ctx, curSlice)
+				}
+				log.Info("Updating origin EndpointSlice", "Service", service.Name)
+				curSlice.Labels = desiredSlice.Labels
+				curSlice.Endpoints = desiredSlice.Endpoints
+				curSlice.Ports = desiredSlice.Ports
+				curSlice.SetAnnotations(desiredSlice.Annotations)
+				return ctrl.Result{}, r.Update(ctx, curSlice)
 			}
 		}
 
@@ -317,5 +376,6 @@ func (r *ServiceCacheReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&v1.Secret{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&networkingv1.Ingress{}).
+		Owns(&discoveryv1.EndpointSlice{}).
 		Complete(r)
 }
