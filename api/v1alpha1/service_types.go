@@ -154,6 +154,14 @@ type ServiceSpec struct {
 	// Specifies which cache to use for the service
 	// Deprecated: This field may be removed in future versions. Target node selectors are stored in RouteSelectors
 	Cache string `json:"cache,omitempty"`
+	// Default cache validity for 200, 301 and 302 responses that the origin
+	// does not mark as cacheable itself (no Cache-Control, Expires or
+	// X-Accel-Expires). Origin headers always take precedence. Uses nginx time
+	// syntax, e.g. "30s", "10m", "1h", "1d". When unset, only responses the
+	// origin explicitly allows are cached.
+	// +kubebuilder:validation:Pattern=`^[0-9]+(ms|s|m|h|d|w|M|y)$`
+	// +optional
+	DefaultCacheTTL string `json:"defaultCacheTtl,omitempty"`
 	// Specifies the cache key modifiers for the service
 	CacheKeySpec CacheKeySpec `json:"cacheKey"`
 
