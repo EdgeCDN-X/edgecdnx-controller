@@ -40,8 +40,10 @@ spec:
             description: DNSEndpointSpec defines the desired state of DNSEndpoint.
             properties:
               dnsName:
-                description: DNSName is the fully qualified domain name for the DNSEndpoint.
+                description: |-
+                  DNSName is the fully qualified domain name for the DNSEndpoint. A wildcard may replace only the leftmost label.
                   Edit dnsendpoint_types.go to remove/update
+                pattern: ^([^*]*|\*\.[^*]+)$
                 type: string
               recordTTL:
                 description: RecordTTL specifies the time-to-live for the DNS record

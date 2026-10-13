@@ -28,7 +28,9 @@ type DNSEndpointSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// DNSName is the fully qualified domain name for the DNSEndpoint. Edit dnsendpoint_types.go to remove/update
+	// DNSName is the fully qualified domain name for the DNSEndpoint. A wildcard may replace only the leftmost label.
+	// Edit dnsendpoint_types.go to remove/update
+	// +kubebuilder:validation:Pattern=^([^*]*|\*\.[^*]+)$
 	DNSName string `json:"dnsName,omitempty"`
 
 	// RoutingPolicy specifies the routing policy for the DNSEndpoint. Edit dnsendpoint_types.go to remove/update
