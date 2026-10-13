@@ -56,6 +56,7 @@ copy-crds-to-helm: manifests ## Copy generated CRDs to the edgecdnx-controller H
 	cp config/crd/bases/infrastructure.edgecdnx.com_projects.yaml $(HELM_CRD_DIR)/projects.infrastructure.edgecdnx.com.yaml
 	cp config/crd/bases/infrastructure.edgecdnx.com_services.yaml $(HELM_CRD_DIR)/services.infrastructure.edgecdnx.com.yaml
 	cp config/crd/bases/infrastructure.edgecdnx.com_zones.yaml $(HELM_CRD_DIR)/zones.infrastructure.edgecdnx.com.yaml
+	cp config/crd/bases/infrastructure.edgecdnx.com_apikeys.yaml $(HELM_CRD_DIR)/apikeys.infrastructure.edgecdnx.com.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
