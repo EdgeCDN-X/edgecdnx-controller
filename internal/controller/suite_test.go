@@ -132,14 +132,6 @@ var _ = BeforeSuite(func() {
 
 		err = (&PrefixListReconciler{
 			Client: k8sManager.GetClient(),
-			Scheme: k8sManager.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       ThrowerChartName,
-				ThrowerChartVersion:    ThrowerChartVersion,
-				ThrowerChartRepository: ThrowerChartRepository,
-				TargetNamespace:        InfrastructureTargetNamespace,
-				ApplicationSetProject:  InfrastructureApplicationSetProject,
-			},
 		}).SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
 	}

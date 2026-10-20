@@ -422,24 +422,7 @@ func main() {
 		}
 	}
 
-	if role == RoleController {
-		if err = (&controller.PrefixListReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
-			os.Exit(1)
-		}
-	}
-
-	if role == RoleController {
+	if role == RoleController && featuregate.Enabled(featureGates, "cachingreconciler") {
 		if err = (&controller.ChallengeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -452,6 +435,15 @@ func main() {
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Challenge")
+			os.Exit(1)
+		}
+	}
+
+	if role == RoleController {
+		if err = (&controller.PrefixListReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
 			os.Exit(1)
 		}
 	}
