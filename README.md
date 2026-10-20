@@ -66,6 +66,27 @@ make uninstall
 make undeploy
 ```
 
+### Downstream Mode
+
+Run one downstream instance per upstream cluster and target type. The upstream kubeconfig must provide `get`, `list`, and `watch` access to the target CRDs. Upstream informers deliver changes reactively; a paginated sweep of only this source's local mirrors runs at startup to recover deletions missed while the downstream process was offline. The downstream instance uses its local service account to create, update, and delete mirrored resources and create missing namespaces. Upstream status and Kubernetes-managed fields are not copied.
+
+For Helm deployments, store the upstream kubeconfig in a Secret in the release namespace. By default, the chart reads the `kubeconfig` key:
+
+```yaml
+role: downstream
+webhook:
+    enabled: "false"
+downstream:
+    target: router # router or cache
+    kubeconfigSecretName: upstream-cluster-kubeconfig
+    kubeconfigSecretKey: kubeconfig
+    workers: 16
+    clientQPS: 100
+    clientBurst: 200
+```
+
+The standalone binary accepts the same configuration through `--role=downstream`, `--target=router|cache`, and `--upstream-kubeconfig=/path/to/kubeconfig`.
+
 ## Project Distribution
 
 Following the options to release and provide this solution to the users.

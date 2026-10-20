@@ -17,11 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"flag"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -30,8 +34,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -74,6 +81,7 @@ const (
 	RoleController      = "controller"
 	RoleCacheController = "cache-controller"
 	RoleRouter          = "router"
+	RoleDownstream      = "downstream"
 )
 
 // nolint:gocyclo
@@ -98,6 +106,11 @@ func main() {
 
 	// Role
 	var role string
+	var downstreamTarget string
+	var upstreamKubeconfig string
+	var downstreamWorkers int
+	var downstreamQPS float64
+	var downstreamBurst int
 	var manageMonitoringProbes bool
 	var locationProbeHealthPath string
 	var locationProbeProberURL string
@@ -128,7 +141,12 @@ func main() {
 
 	flag.StringVar(&role, "role", "controller",
 		"The role of this instance. Can be 'controller', runs on control plane,"+
-			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes")
+			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes, 'downstream', syncs from an upstream cluster")
+	flag.StringVar(&downstreamTarget, "target", "", "Downstream target type: router or cache (required for --role=downstream).")
+	flag.StringVar(&upstreamKubeconfig, "upstream-kubeconfig", "", "Path to the kubeconfig for the upstream cluster (required for --role=downstream).")
+	flag.IntVar(&downstreamWorkers, "downstream-workers", controller.DownstreamWorkers, "Number of concurrent downstream resource workers.")
+	flag.Float64Var(&downstreamQPS, "downstream-client-qps", 100, "Kubernetes client QPS; set negative to disable client-side throttling.")
+	flag.IntVar(&downstreamBurst, "downstream-client-burst", 200, "Kubernetes client burst for downstream synchronization.")
 	flag.BoolVar(
 		&manageMonitoringProbes,
 		"manage-monitoring-probes",
@@ -215,6 +233,46 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	var upstreamCache ctrlcache.Cache
+	var downstreamSourceID string
+	if role == RoleDownstream {
+		if downstreamTarget != string(controller.DownstreamTargetRouter) && downstreamTarget != string(controller.DownstreamTargetCache) {
+			setupLog.Error(nil, "invalid downstream target", "target", downstreamTarget)
+			os.Exit(1)
+		}
+		if upstreamKubeconfig == "" {
+			setupLog.Error(nil, "upstream kubeconfig is required for downstream role")
+			os.Exit(1)
+		}
+
+		upstreamConfig, err := clientcmd.BuildConfigFromFlags("", upstreamKubeconfig)
+		if err != nil {
+			setupLog.Error(err, "unable to load upstream kubeconfig")
+			os.Exit(1)
+		}
+		if downstreamWorkers < 1 || downstreamQPS == 0 || downstreamBurst < 1 {
+			setupLog.Error(nil, "downstream workers and burst must be positive, and client QPS must be non-zero")
+			os.Exit(1)
+		}
+		upstreamConfig.QPS = float32(downstreamQPS)
+		upstreamConfig.Burst = downstreamBurst
+		if downstreamQPS < 0 {
+			upstreamConfig.RateLimiter = nil
+		}
+		syncPeriod := time.Duration(0)
+		upstreamCache, err = ctrlcache.New(upstreamConfig, ctrlcache.Options{
+			Scheme:           scheme,
+			SyncPeriod:       &syncPeriod,
+			DefaultTransform: controller.DownstreamCacheTransform,
+		})
+		if err != nil {
+			setupLog.Error(err, "unable to create upstream informer cache")
+			os.Exit(1)
+		}
+		sourceHash := sha256.Sum256([]byte(upstreamConfig.Host))
+		downstreamSourceID = hex.EncodeToString(sourceHash[:16])
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -305,7 +363,15 @@ func main() {
 		})
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	localConfig := ctrl.GetConfigOrDie()
+	if role == RoleDownstream {
+		localConfig.QPS = float32(downstreamQPS)
+		localConfig.Burst = downstreamBurst
+		if downstreamQPS < 0 {
+			localConfig.RateLimiter = nil
+		}
+	}
+	mgr, err := ctrl.NewManager(localConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
@@ -329,55 +395,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Test - Done
-	if role == RoleController {
-		if err = (&controller.LocationReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Location")
+	if role == RoleDownstream {
+		localSyncClient, clientErr := client.New(localConfig, client.Options{Scheme: scheme})
+		if clientErr != nil {
+			setupLog.Error(clientErr, "unable to create downstream local client")
 			os.Exit(1)
 		}
-	}
-
-	if role == RoleController {
-		if err = (&controller.HealthCheckProfileReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "HealthCheckProfile")
+		downstream, createErr := controller.NewDownstreamReconciler(
+			upstreamCache,
+			localSyncClient,
+			controller.DownstreamTarget(downstreamTarget),
+			downstreamSourceID,
+			downstreamWorkers,
+		)
+		if createErr != nil {
+			setupLog.Error(createErr, "unable to create downstream controller")
 			os.Exit(1)
 		}
-	}
-
-	// Test - Done
-	if role == RoleController {
-		if err = (&controller.ZoneReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Zone")
+		if err = downstream.RegisterHandlers(context.Background()); err != nil {
+			setupLog.Error(err, "unable to register downstream upstream watches")
+			os.Exit(1)
+		}
+		if err = mgr.Add(downstream); err != nil {
+			setupLog.Error(err, "unable to create downstream controller")
 			os.Exit(1)
 		}
 	}
@@ -448,23 +488,6 @@ func main() {
 			},
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "TLSSecret")
-			os.Exit(1)
-		}
-	}
-
-	if role == RoleController {
-		if err = (&controller.DNSEndpointReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "DNSEndpoint")
 			os.Exit(1)
 		}
 	}

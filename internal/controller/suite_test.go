@@ -115,19 +115,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	if os.Getenv("ROLE") == ControllerRole {
-		err = (&LocationReconciler{
-			Client: k8sManager.GetClient(),
-			Scheme: k8sManager.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       ThrowerChartName,
-				ThrowerChartVersion:    ThrowerChartVersion,
-				ThrowerChartRepository: ThrowerChartRepository,
-				TargetNamespace:        InfrastructureTargetNamespace,
-				ApplicationSetProject:  InfrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(k8sManager)
-		Expect(err).ToNot(HaveOccurred())
-
 		err = (&ServiceReconciler{
 			Client: k8sManager.GetClient(),
 			Scheme: k8sManager.GetScheme(),
