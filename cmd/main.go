@@ -56,6 +56,7 @@ import (
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/featuregate"
 	webhookinfrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -112,9 +113,7 @@ func main() {
 	var downstreamQPS float64
 	var downstreamBurst int
 	var manageMonitoringProbes bool
-	var locationProbeHealthPath string
-	var locationProbeProberURL string
-	var monitoringReleaseLabel string
+	var featureGates string
 
 	// Secure URLs
 	var secureUrlsEndpoint string
@@ -142,6 +141,7 @@ func main() {
 	flag.StringVar(&role, "role", "controller",
 		"The role of this instance. Can be 'controller', runs on control plane,"+
 			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes, 'downstream', syncs from an upstream cluster")
+	flag.StringVar(&featureGates, "feature-gates", "", "Comma-separated list of enabled feature gates.")
 	flag.StringVar(&downstreamTarget, "target", "", "Downstream target type: router or cache (required for --role=downstream).")
 	flag.StringVar(&upstreamKubeconfig, "upstream-kubeconfig", "", "Path to the kubeconfig for the upstream cluster (required for --role=downstream).")
 	flag.IntVar(&downstreamWorkers, "downstream-workers", controller.DownstreamWorkers, "Number of concurrent downstream resource workers.")
@@ -152,25 +152,6 @@ func main() {
 		"manage-monitoring-probes",
 		false,
 		"If true, Location routing reconciler creates and updates monitoring Probe resources.",
-	)
-
-	flag.StringVar(
-		&locationProbeHealthPath,
-		"location-probe-health-path",
-		builder.DefaultLocationProbeHealthPath,
-		"HTTP path used for location probe targets.",
-	)
-	flag.StringVar(
-		&locationProbeProberURL,
-		"location-probe-prober-url",
-		builder.DefaultLocationProbeProberURL,
-		"Address of the blackbox prober service used by location probes.",
-	)
-	flag.StringVar(
-		&monitoringReleaseLabel,
-		"monitoring-release-label",
-		builder.DefaultMonitoringReleaseLabel,
-		"Release label applied to generated location Probe resources.",
 	)
 
 	flag.StringVar(
@@ -422,8 +403,8 @@ func main() {
 		}
 	}
 
-	// Tests - In Progress
-	if role == RoleController {
+	if role == RoleController && featuregate.Enabled(featureGates, "cachingreconciler") {
+		// Service behind Feature Gate
 		if err = (&controller.ServiceReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -475,23 +456,6 @@ func main() {
 		}
 	}
 
-	if role == RoleController {
-		if err = (&controller.SecretReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "TLSSecret")
-			os.Exit(1)
-		}
-	}
-
 	if role == RoleCacheController {
 		if err = (&controller.ServiceCacheReconciler{
 			Client:             mgr.GetClient(),
@@ -504,20 +468,6 @@ func main() {
 	}
 
 	if role == RoleRouter {
-		if err = (&controller.LocationRoutingReconciler{
-			Client:                 mgr.GetClient(),
-			Scheme:                 mgr.GetScheme(),
-			ManageMonitoringProbes: manageMonitoringProbes,
-			ProbeBuilderConfig: builder.ProbeBuilderConfig{
-				LocationProbeHealthPath: locationProbeHealthPath,
-				LocationProbeProberURL:  locationProbeProberURL,
-				MonitoringReleaseLabel:  monitoringReleaseLabel,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "LocationRouting")
-			os.Exit(1)
-		}
-
 		if err = (&controller.ServiceRoutingReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),

@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/featuregate"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -114,7 +115,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	if os.Getenv("ROLE") == ControllerRole {
+	if os.Getenv("ROLE") == ControllerRole && featuregate.Enabled(os.Getenv("FEATURE_GATES"), "cachingreconciler") {
 		err = (&ServiceReconciler{
 			Client: k8sManager.GetClient(),
 			Scheme: k8sManager.GetScheme(),
@@ -143,15 +144,8 @@ var _ = BeforeSuite(func() {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	if os.Getenv("ROLE") == "router" {
-		locRoutingReconciler := &LocationRoutingReconciler{
-			Client:                 k8sManager.GetClient(),
-			Scheme:                 k8sManager.GetScheme(),
-			ManageMonitoringProbes: true,
-		}
-		err = locRoutingReconciler.SetupWithManager(k8sManager)
-		Expect(err).ToNot(HaveOccurred())
-	}
+	// TODO router role not yet clear and implemented. CDN functionality is now behind a feature gate.
+	// if os.Getenv("ROLE") == "router" {}
 
 	go func() {
 		defer GinkgoRecover()
