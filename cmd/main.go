@@ -478,9 +478,7 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Service")
 			os.Exit(1)
 		}
-	}
-	// nolint:goconst
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+
 		if err = webhookinfrastructurev1alpha1.SetupZoneWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Zone")
 			os.Exit(1)
