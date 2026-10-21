@@ -122,20 +122,22 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
-  - prefixlists/finalizers
-  - services/finalizers
-  - zones/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - infrastructure.edgecdnx.com
-  resources:
+  - healthcheckprofiles/status
+  - locations/status
   - prefixlists/status
   - services/status
   - zones/status
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - infrastructure.edgecdnx.com
+  resources:
+  - prefixlists/finalizers
+  - services/finalizers
+  - zones/finalizers
+  verbs:
   - update
 - apiGroups:
   - networking.k8s.io

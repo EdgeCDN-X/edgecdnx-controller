@@ -114,7 +114,6 @@ func main() {
 	var downstreamWorkers int
 	var downstreamQPS float64
 	var downstreamBurst int
-	var manageMonitoringProbes bool
 	var featureGates string
 
 	// Secure URLs
@@ -151,12 +150,6 @@ func main() {
 	flag.IntVar(&downstreamWorkers, "downstream-workers", controller.DownstreamWorkers, "Number of concurrent downstream resource workers.")
 	flag.Float64Var(&downstreamQPS, "downstream-client-qps", 100, "Kubernetes client QPS; set negative to disable client-side throttling.")
 	flag.IntVar(&downstreamBurst, "downstream-client-burst", 200, "Kubernetes client burst for downstream synchronization.")
-	flag.BoolVar(
-		&manageMonitoringProbes,
-		"manage-monitoring-probes",
-		false,
-		"If true, Location routing reconciler creates and updates monitoring Probe resources.",
-	)
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -433,9 +426,7 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
 			os.Exit(1)
 		}
-	}
 
-	if role == RoleController && featuregate.Enabled(featureGates, "cachingreconciler") {
 		if err = (&controller.ChallengeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
@@ -453,10 +444,32 @@ func main() {
 	}
 
 	if role == RoleController {
+		if err = (&controller.HealthCheckProfileReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HealthCheckProfile")
+			os.Exit(1)
+		}
+
+		if err = (&controller.LocationReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Location")
+			os.Exit(1)
+		}
+
 		if err = (&controller.PrefixListReconciler{
 			Client: mgr.GetClient(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "PrefixList")
+			os.Exit(1)
+		}
+
+		if err = (&controller.ZoneReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Zone")
 			os.Exit(1)
 		}
 	}

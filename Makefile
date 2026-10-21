@@ -115,6 +115,47 @@ build: manifests generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
+KIND_CLUSTER ?= edgecdnx
+KIND_NAMESPACE ?= edgecdnx-controller-system
+KIND_DEPLOYMENT ?= edgecdnx-controller-controller-manager
+KIND_UPSTREAM_CLUSTER ?= $(KIND_CLUSTER)
+KIND_DOWNSTREAM_CLUSTER ?= edgecdnx-downstream
+
+.PHONY: run-dev-kind-downstream
+run-dev-kind-downstream: ## Run the downstream router controller locally with fresh kind kubeconfigs.
+	@set -eu; \
+	umask 077; \
+	kubeconfig_dir=$$(mktemp -d "$${TMPDIR:-/tmp}/edgecdnx-kind.XXXXXX"); \
+	trap 'rm -rf "$$kubeconfig_dir"' EXIT; \
+	$(KIND) get kubeconfig --name "$(KIND_DOWNSTREAM_CLUSTER)" > "$$kubeconfig_dir/local.kubeconfig"; \
+	$(KIND) get kubeconfig --name "$(KIND_UPSTREAM_CLUSTER)" > "$$kubeconfig_dir/upstream.kubeconfig"; \
+	KUBECONFIG="$$kubeconfig_dir/local.kubeconfig" ENABLE_WEBHOOKS=false \
+		go run ./cmd/main.go \
+			--role=downstream \
+			--target=router \
+			--upstream-kubeconfig="$$kubeconfig_dir/upstream.kubeconfig" \
+			--downstream-workers=16 \
+			--downstream-client-qps=-1 \
+			--downstream-client-burst=400
+
+.PHONY: run-dev-kind
+run-dev-kind: ## Rebuild and load a fresh image into kind, then update the existing deployment.
+	@set -eu; \
+	context="kind-$(KIND_CLUSTER)"; \
+	$(KUBECTL) --context="$$context" -n "$(KIND_NAMESPACE)" get deployment "$(KIND_DEPLOYMENT)" >/dev/null; \
+	arch=$$($(KUBECTL) --context="$$context" get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}'); \
+	image="edgecdnx-controller:local-$$(uuidgen | tr '[:upper:]' '[:lower:]')"; \
+	$(CONTAINER_TOOL) build --platform="linux/$$arch" -t "$$image" .; \
+	$(KIND) load docker-image "$$image" --name "$(KIND_CLUSTER)"; \
+	$(KUBECTL) --context="$$context" -n "$(KIND_NAMESPACE)" patch deployment "$(KIND_DEPLOYMENT)" \
+		--type=strategic \
+		-p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"manager\",\"image\":\"$$image\",\"imagePullPolicy\":\"Never\"}]}}}}"; \
+	$(KUBECTL) --context="$$context" -n "$(KIND_NAMESPACE)" \
+		rollout status "deployment/$(KIND_DEPLOYMENT)" --timeout=180s; \
+	$(KUBECTL) --context="$$context" -n "$(KIND_NAMESPACE)" get pods \
+		-l control-plane=controller-manager \
+		-o 'custom-columns=POD:.metadata.name,IMAGE:.spec.containers[*].image,IMAGE_ID:.status.containerStatuses[*].imageID'
+
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
