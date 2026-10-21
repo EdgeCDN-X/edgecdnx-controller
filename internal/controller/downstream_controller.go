@@ -43,15 +43,16 @@ type downstreamQueueKey struct {
 }
 
 type DownstreamReconciler struct {
-	UpstreamCache  ctrlcache.Cache
-	UpstreamReader client.Reader
-	Local          client.Client
-	Target         DownstreamTarget
-	SourceID       string
-	Workers        int
-	queue          workqueue.TypedRateLimitingInterface[downstreamQueueKey]
-	kinds          map[string]downstreamResourceKind
-	namespaces     sync.Map
+	TargetNamespace string
+	UpstreamCache   ctrlcache.Cache
+	UpstreamReader  client.Reader
+	Local           client.Client
+	Target          DownstreamTarget
+	SourceID        string
+	Workers         int
+	queue           workqueue.TypedRateLimitingInterface[downstreamQueueKey]
+	kinds           map[string]downstreamResourceKind
+	namespaces      sync.Map
 }
 
 var stripManagedFields = ctrlcache.TransformStripManagedFields()
@@ -130,6 +131,9 @@ func (r *DownstreamReconciler) enqueueObject(kind string, object interface{}) {
 	}
 	resource, ok := object.(client.Object)
 	if !ok {
+		return
+	}
+	if r.TargetNamespace != "" && resource.GetNamespace() != r.TargetNamespace {
 		return
 	}
 	r.queue.Add(downstreamQueueKey{Kind: kind, Key: client.ObjectKeyFromObject(resource)})
@@ -238,6 +242,9 @@ func downstreamResourceKinds(target DownstreamTarget) ([]downstreamResourceKind,
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=dnsendpoints;healthcheckprofiles;locations;prefixlists;services;zones,verbs=get;list;create;update;delete
 
 func (r *DownstreamReconciler) reconcileKey(ctx context.Context, key downstreamQueueKey) error {
+	if r.TargetNamespace != "" && key.Key.Namespace != r.TargetNamespace {
+		return nil
+	}
 	kind, exists := r.kinds[key.Kind]
 	if !exists {
 		return fmt.Errorf("unknown downstream resource kind %q", key.Kind)
@@ -264,6 +271,7 @@ func (r *DownstreamReconciler) enqueueExistingMirrors(ctx context.Context) error
 		for {
 			list := kind.newList()
 			if err := r.Local.List(ctx, list,
+				client.InNamespace(r.TargetNamespace),
 				client.MatchingLabels{DownstreamManagedLabel: r.SourceID},
 				client.Limit(DownstreamPageSize),
 				client.Continue(continueToken),

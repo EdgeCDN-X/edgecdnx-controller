@@ -24,6 +24,7 @@ import (
 	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,6 +50,7 @@ var _ = Describe("PrefixList Controller", func() {
 			prefixList := &infrastructurev1alpha1.PrefixList{
 				ObjectMeta: metav1.ObjectMeta{Name: prefixListName, Namespace: namespace},
 				Spec: infrastructurev1alpha1.PrefixListSpec{
+					Project:     &corev1.LocalObjectReference{Name: namespace},
 					Source:      "Static",
 					Destination: "location-a",
 					Prefix: infrastructurev1alpha1.PrefixSpec{
@@ -62,6 +64,7 @@ var _ = Describe("PrefixList Controller", func() {
 			secondPrefixList := &infrastructurev1alpha1.PrefixList{
 				ObjectMeta: metav1.ObjectMeta{Name: secondPrefixListLookupKey.Name, Namespace: namespace},
 				Spec: infrastructurev1alpha1.PrefixListSpec{
+					Project:     &corev1.LocalObjectReference{Name: namespace},
 					Source:      "Bgp",
 					Destination: "location-a",
 					Prefix: infrastructurev1alpha1.PrefixSpec{

@@ -3,6 +3,8 @@ kind: Zone
 metadata:
   name: edgecdnx-com
 spec:
+  project:
+    name: tenant-demo
   zone: edgecdnx.com
   email: noc.edgecdnx.com.
 ---
@@ -11,5 +13,7 @@ kind: Zone
 metadata:
   name: example-com
 spec:
+  project:
+    name: tenant-demo
   zone: example.com
   email: noc.example.com.

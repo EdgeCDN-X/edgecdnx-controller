@@ -86,6 +86,15 @@ rules:
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:
+  - apikeys
+  - projects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.edgecdnx.com
+  resources:
   - dnsendpoints
   - prefixlists
   - services
@@ -109,6 +118,7 @@ rules:
   - get
   - list
   - update
+  - watch
 - apiGroups:
   - infrastructure.edgecdnx.com
   resources:

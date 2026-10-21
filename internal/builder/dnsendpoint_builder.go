@@ -65,6 +65,7 @@ func (b *DefaultDNSEndpointBuilder) WithRouteSelector(routeSelector *metav1.Labe
 }
 
 func (b *DefaultDNSEndpointBuilder) WithService(service infrastructurev1alpha1.Service, dnsName string, recordType string) {
+	b.dnsEndpoint.Spec.Project = service.Spec.Project.DeepCopy()
 	b.WithDNSName(dnsName)
 	b.WithRecordType(recordType)
 	b.WithRouteSelector(service.Spec.RouteSelector)

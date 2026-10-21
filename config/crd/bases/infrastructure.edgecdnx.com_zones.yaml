@@ -43,6 +43,27 @@ spec:
                 description: Email is the contact email for the zone. Must be in dot
                   notation e.g. noc.zone.custom.com
                 type: string
+              project:
+                description: |-
+                  LocalObjectReference contains enough information to let you locate the
+                  referenced object inside the same namespace.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: project name is required
+                  rule: has(self.name) && self.name != ''
+                - message: project is immutable
+                  rule: self == oldSelf
               zone:
                 description: Zone is the name of the zone.
                 type: string
@@ -51,6 +72,7 @@ spec:
                   rule: self == oldSelf
             required:
             - email
+            - project
             - zone
             type: object
           status:
@@ -63,6 +85,8 @@ spec:
                 - Degraded
                 type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

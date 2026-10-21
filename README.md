@@ -42,6 +42,10 @@ privileges or be logged in as admin.
 You can apply the samples (examples) from the config/sample:
 
 ```sh
+kubectl apply -f config/samples/infrastructure_v1alpha1_project.yaml
+kubectl apply -n tenant-demo -f config/samples/infrastructure_v1alpha1_healthcheckprofile.yaml
+kubectl apply -n tenant-demo -f config/samples/infrastructure_v1alpha1_location.yaml
+kubectl apply -n tenant-demo -f config/samples/infrastructure_v1alpha1_zone.yaml
 kubectl apply -k config/samples/
 ```
 
@@ -65,6 +69,27 @@ make uninstall
 ```sh
 make undeploy
 ```
+
+### Project Placement
+
+Projects represent tenants. All EdgeCDN-X CRDs remain Kubernetes namespaced resources.
+
+| Flags | Placement | Tenant CRD watches |
+| --- | --- | --- |
+| `--namespaced=true` (default) | One Project per namespace; its `metadata.name` must equal the namespace name | All namespaces |
+| `--namespaced=false --target-namespace=edgecdnx` | Multiple Projects share the configured namespace | Only the target namespace |
+
+Create the namespace and Project before tenant resources. Namespaces are not automatically provisioned by the Project webhook. Every non-Project CRD, including Location, requires an immutable `spec.project: {name: <project-name>}`. References resolve within the resource's namespace and must belong to the same Project, including DNS zones, PrefixList destinations, Location parents/fallbacks, and healthcheck profiles. Create dependencies first; establish cyclic Location fallback relationships through updates after creating the Locations without those references.
+
+Generated Service DNS endpoints inherit the Project and use a matching same-Project Zone. Infrastructure placement is still controlled separately by `--infrastructure-target-namespace`. Infrastructure caches are not restricted by tenant placement flags. Use the same placement configuration for all instances of one deployment; independent deployments must not install overlapping admission webhooks with conflicting policies.
+
+Admission webhooks must be deployed, reachable, and enabled (`ENABLE_WEBHOOKS` must not be `false`) to enforce placement and reference checks. CRD schemas independently require `spec.project.name` and prevent ownership changes. The stock Kustomize deployment has webhook/certificate integration commented out; enable its WEBHOOK and CERTMANAGER sections, or deploy equivalent TLS and webhook configuration, before relying on tenant admission enforcement.
+
+Namespace-per-project placement supports Kubernetes namespace RBAC isolation. Shared-namespace placement does not: enforce Project authorization in the API layer and restrict tenants' direct Kubernetes access. Project references alone do not grant or restrict access. Project deletion does not automatically delete tenant resources.
+
+#### Breaking Migration
+
+API keys now use `spec.project` instead of `spec.projectRef`. Before installing the stricter CRDs/webhooks, stage a permissive schema accepting the new field and backfill Project references on existing resources and manifests, including Locations. Move tenants into their intended namespaces and give Projects matching names in dedicated mode. Kubernetes namespaces and object names cannot be changed in place, so recreate resources when necessary. Update API clients and GitOps manifests, then install the generated strict CRDs and enable admission enforcement. Do not switch placement modes until existing resources satisfy the new placement policy.
 
 ### Downstream Mode
 

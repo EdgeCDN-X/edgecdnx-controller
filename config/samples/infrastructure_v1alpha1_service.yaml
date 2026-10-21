@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: test1-edgecdnx-com
 spec:
+  project:
+    name: tenant-demo
   name: test1.edgecdnx.com
   domain: test1.edgecdnx.com
   originType: static
@@ -24,6 +26,8 @@ kind: Service
 metadata:
   name: test2-edgecdnx-com
 spec:
+  project:
+    name: tenant-demo
   name: test2.edgecdnx.com
   domain: test2.edgecdnx.com
   originType: static

@@ -5,8 +5,8 @@ metadata:
   labels:
     edgecdnx.com/routing-instance: edgecdnx
 spec:
-  fallbackLocations:
-    - us
+  project:
+    name: tenant-demo
   geoLookup:
     weight: 50
     attributes:
@@ -38,6 +38,8 @@ metadata:
   labels:
     edgecdnx.com/routing-instance: edgecdnx
 spec:
+  project:
+    name: tenant-demo
   fallbackLocations:
     - eu
   geoLookup:

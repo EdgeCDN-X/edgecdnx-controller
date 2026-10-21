@@ -31,7 +31,10 @@ type APIKeySpec struct {
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Which project this apikey belongs to
-	ProjectRef *corev1.LocalObjectReference `json:"projectRef,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
+	Project *corev1.LocalObjectReference `json:"project"`
 
 	// Credential information for the API key
 	Credential CredentialSpec `json:"credential,omitempty"`
@@ -61,6 +64,7 @@ type APIKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   APIKeySpec   `json:"spec,omitempty"`
 	Status APIKeyStatus `json:"status,omitempty"`
 }

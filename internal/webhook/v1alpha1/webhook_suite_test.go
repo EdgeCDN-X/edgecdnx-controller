@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -120,6 +121,10 @@ var _ = BeforeSuite(func() {
 
 	err = SetupPrefixListWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
+
+	err = SetupProjectWebhookWithManager(mgr, tenancy.Scope{Namespaced: true})
+	Expect(err).NotTo(HaveOccurred())
+	SetupTenancyWebhookWithManager(mgr, tenancy.Scope{Namespaced: true})
 
 	// +kubebuilder:scaffold:webhook
 

@@ -59,7 +59,7 @@ spec:
                   expires.
                 format: date-time
                 type: string
-              projectRef:
+              project:
                 description: Which project this apikey belongs to
                 properties:
                   name:
@@ -73,10 +73,19 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: project name is required
+                  rule: has(self.name) && self.name != ''
+                - message: project is immutable
+                  rule: self == oldSelf
+            required:
+            - project
             type: object
           status:
             description: APIKeyStatus defines the observed state of APIKey.
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

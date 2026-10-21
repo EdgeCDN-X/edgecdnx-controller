@@ -23,6 +23,9 @@ import (
 	"strings"
 
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
+	"github.com/miekg/dns"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,6 +46,7 @@ type ServiceRoutingReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=zones,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
 func (r *ServiceRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -55,12 +59,26 @@ func (r *ServiceRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	desiredNames := make(map[string]struct{})
+	zones := &infrastructurev1alpha1.ZoneList{}
+	if err := r.List(ctx, zones, client.InNamespace(service.Namespace)); err != nil {
+		return ctrl.Result{}, err
+	}
 	dnsNames := []string{service.Spec.Domain}
 	for _, hostAlias := range service.Spec.HostAliases {
 		dnsNames = append(dnsNames, hostAlias.Name)
 	}
 
 	for _, dnsName := range dnsNames {
+		var zoneName string
+		var zoneLength int
+		for _, zone := range zones.Items {
+			if tenancy.SameProject(service, &zone) && dns.IsSubDomain(dns.Fqdn(zone.Spec.Zone), dns.Fqdn(dnsName)) && len(zone.Spec.Zone) > zoneLength {
+				zoneName, zoneLength = zone.Name, len(zone.Spec.Zone)
+			}
+		}
+		if zoneName == "" {
+			return ctrl.Result{}, fmt.Errorf("no zone in the service project covers %q", dnsName)
+		}
 		for _, recordType := range []string{"A", "AAAA"} {
 			name := serviceDNSEndpointName(service.Name, dnsName, recordType)
 			desiredNames[name] = struct{}{}
@@ -74,6 +92,7 @@ func (r *ServiceRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			desiredDNSEndpoint.Spec.Zone = &corev1.LocalObjectReference{Name: zoneName}
 
 			currentDNSEndpoint := &infrastructurev1alpha1.DNSEndpoint{}
 			key := types.NamespacedName{Name: name, Namespace: service.Namespace}
@@ -92,8 +111,11 @@ func (r *ServiceRoutingReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				continue
 			}
 
+			if !tenancy.SameProject(service, currentDNSEndpoint) {
+				return ctrl.Result{}, fmt.Errorf("DNSEndpoint %s belongs to another project", key)
+			}
 			currentHash, hasHash := currentDNSEndpoint.Annotations[builder.ValuesHashAnnotation]
-			if hasHash && currentHash == hash && metav1.IsControlledBy(currentDNSEndpoint, service) {
+			if hasHash && currentHash == hash && metav1.IsControlledBy(currentDNSEndpoint, service) && currentDNSEndpoint.Spec.Zone != nil && currentDNSEndpoint.Spec.Zone.Name == zoneName {
 				continue
 			}
 

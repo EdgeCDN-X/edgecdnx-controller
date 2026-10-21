@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,6 +26,11 @@ import (
 
 // ZoneSpec defines the desired state of Zone.
 type ZoneSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
+	Project *corev1.LocalObjectReference `json:"project"`
+
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -49,6 +55,7 @@ type Zone struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   ZoneSpec   `json:"spec,omitempty"`
 	Status ZoneStatus `json:"status,omitempty"`
 }

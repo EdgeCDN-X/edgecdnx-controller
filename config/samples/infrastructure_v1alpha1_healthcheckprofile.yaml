@@ -6,6 +6,8 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: healthcheckprofile-sample
 spec:
+  project:
+    name: tenant-demo
   probes:
     - name: tcp-default
       type: TCP

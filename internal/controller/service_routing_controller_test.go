@@ -6,6 +6,7 @@ import (
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,9 +23,16 @@ var _ = Describe("Service Routing Controller", func() {
 	selector := &metav1.LabelSelector{MatchLabels: map[string]string{"edgecdnx.com/routing-instance": "edgecdnx"}}
 
 	BeforeEach(func() {
+		for _, domain := range []string{"edgecdnx.com", "example.com"} {
+			Expect(k8sClient.Create(ctx, &infrastructurev1alpha1.Zone{
+				ObjectMeta: metav1.ObjectMeta{Name: domain, Namespace: "default"},
+				Spec:       infrastructurev1alpha1.ZoneSpec{Project: &corev1.LocalObjectReference{Name: "default"}, Zone: domain, Email: "noc." + domain},
+			})).To(Succeed())
+		}
 		service := &infrastructurev1alpha1.Service{
 			ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
 			Spec: infrastructurev1alpha1.ServiceSpec{
+				Project:       &corev1.LocalObjectReference{Name: "default"},
 				Domain:        "routing-test.edgecdnx.com",
 				HostAliases:   []infrastructurev1alpha1.HostAliasSpec{{Name: "routing-alias.example.com"}},
 				RouteSelector: selector,
@@ -51,6 +59,9 @@ var _ = Describe("Service Routing Controller", func() {
 		if err := k8sClient.Get(ctx, serviceKey, service); err == nil {
 			Expect(k8sClient.Delete(ctx, service)).To(Succeed())
 		}
+		for _, domain := range []string{"edgecdnx.com", "example.com"} {
+			Expect(k8sClient.Delete(ctx, &infrastructurev1alpha1.Zone{ObjectMeta: metav1.ObjectMeta{Name: domain, Namespace: "default"}})).To(Succeed())
+		}
 	})
 
 	It("creates and maintains A and AAAA endpoints for the domain and host aliases", func() {
@@ -66,6 +77,8 @@ var _ = Describe("Service Routing Controller", func() {
 				dnsEndpoint := &infrastructurev1alpha1.DNSEndpoint{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: "default"}, dnsEndpoint)).To(Succeed())
 				Expect(dnsEndpoint.Spec.DNSName).To(Equal(dnsName))
+				Expect(dnsEndpoint.Spec.Project).To(Equal(service.Spec.Project))
+				Expect(dnsEndpoint.Spec.Zone).NotTo(BeNil())
 				Expect(dnsEndpoint.Spec.RecordType).To(Equal(recordType))
 				Expect(dnsEndpoint.Spec.RoutingPolicy).To(Equal(builder.DNSRoutingPolicyGeolocation))
 				Expect(dnsEndpoint.Spec.RouteSelector).To(Equal(selector))

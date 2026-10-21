@@ -57,6 +57,7 @@ import (
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/featuregate"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
 	webhookinfrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -107,6 +108,7 @@ func main() {
 
 	// Role
 	var role string
+	var tenantScope tenancy.Scope
 	var downstreamTarget string
 	var upstreamKubeconfig string
 	var downstreamWorkers int
@@ -141,6 +143,8 @@ func main() {
 	flag.StringVar(&role, "role", "controller",
 		"The role of this instance. Can be 'controller', runs on control plane,"+
 			" 'cache-controller', runs on edge nodes, 'router', runs on routing nodes, 'downstream', syncs from an upstream cluster")
+	flag.BoolVar(&tenantScope.Namespaced, "namespaced", true, "Place each project and its resources in a dedicated namespace.")
+	flag.StringVar(&tenantScope.TargetNamespace, "target-namespace", "edgecdnx", "Shared tenant namespace when --namespaced=false.")
 	flag.StringVar(&featureGates, "feature-gates", "", "Comma-separated list of enabled feature gates.")
 	flag.StringVar(&downstreamTarget, "target", "", "Downstream target type: router or cache (required for --role=downstream).")
 	flag.StringVar(&upstreamKubeconfig, "upstream-kubeconfig", "", "Path to the kubeconfig for the upstream cluster (required for --role=downstream).")
@@ -214,6 +218,10 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	if err := tenantScope.Validate(); err != nil {
+		setupLog.Error(err, "invalid tenant scope")
+		os.Exit(1)
+	}
 
 	var upstreamCache ctrlcache.Cache
 	var downstreamSourceID string
@@ -244,6 +252,7 @@ func main() {
 		syncPeriod := time.Duration(0)
 		upstreamCache, err = ctrlcache.New(upstreamConfig, ctrlcache.Options{
 			Scheme:           scheme,
+			ByObject:         tenantScope.CacheObjects(),
 			SyncPeriod:       &syncPeriod,
 			DefaultTransform: controller.DownstreamCacheTransform,
 		})
@@ -354,6 +363,7 @@ func main() {
 	}
 	mgr, err := ctrl.NewManager(localConfig, ctrl.Options{
 		Scheme:                 scheme,
+		Cache:                  ctrlcache.Options{ByObject: tenantScope.CacheObjects()},
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
@@ -392,6 +402,9 @@ func main() {
 		if createErr != nil {
 			setupLog.Error(createErr, "unable to create downstream controller")
 			os.Exit(1)
+		}
+		if !tenantScope.Namespaced {
+			downstream.TargetNamespace = tenantScope.TargetNamespace
 		}
 		if err = downstream.RegisterHandlers(context.Background()); err != nil {
 			setupLog.Error(err, "unable to register downstream upstream watches")
@@ -499,6 +512,14 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "PrefixList")
 			os.Exit(1)
 		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookinfrastructurev1alpha1.SetupProjectWebhookWithManager(mgr, tenantScope); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Project")
+			os.Exit(1)
+		}
+		webhookinfrastructurev1alpha1.SetupTenancyWebhookWithManager(mgr, tenantScope)
 	}
 	// +kubebuilder:scaffold:builder
 	if metricsCertWatcher != nil {

@@ -339,10 +339,33 @@ spec:
                   where child locations rely solely on their parent for fallback decisions,
                   rather than having their own separate fallback configurations.
                 type: string
+              project:
+                description: |-
+                  LocalObjectReference contains enough information to let you locate the
+                  referenced object inside the same namespace.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: project name is required
+                  rule: has(self.name) && self.name != ''
+                - message: project is immutable
+                  rule: self == oldSelf
               weight:
                 description: Used for weighted routing decisions among locations.
                 format: int32
                 type: integer
+            required:
+            - project
             type: object
           status:
             description: LocationStatus defines the observed state of Location.
@@ -449,6 +472,8 @@ spec:
                 - Degraded
                 type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

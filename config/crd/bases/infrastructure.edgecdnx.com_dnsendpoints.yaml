@@ -45,6 +45,27 @@ spec:
                   Edit dnsendpoint_types.go to remove/update
                 pattern: ^([^*]*|\*\.[^*]+)$
                 type: string
+              project:
+                description: |-
+                  LocalObjectReference contains enough information to let you locate the
+                  referenced object inside the same namespace.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: project name is required
+                  rule: has(self.name) && self.name != ''
+                - message: project is immutable
+                  rule: self == oldSelf
               recordTTL:
                 description: RecordTTL specifies the time-to-live for the DNS record
                   in seconds. Edit dnsendpoint_types.go to remove/update
@@ -141,6 +162,8 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+            required:
+            - project
             type: object
           status:
             description: DNSEndpointStatus defines the observed state of DNSEndpoint.
@@ -152,6 +175,8 @@ spec:
                 - Degraded
                 type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

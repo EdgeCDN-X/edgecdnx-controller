@@ -59,6 +59,7 @@ var _ = Describe("Service Controller", func() {
 				Namespace: Namespace,
 			},
 			Spec: infrastructurev1alpha1.ServiceSpec{
+				Project:    &corev1.LocalObjectReference{Name: Namespace},
 				Name:       ServiceName,
 				Domain:     ServiceName,
 				OriginType: "static",

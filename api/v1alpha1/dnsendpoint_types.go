@@ -26,6 +26,11 @@ import (
 
 // DNSEndpointSpec defines the desired state of DNSEndpoint.
 type DNSEndpointSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
+	Project *corev1.LocalObjectReference `json:"project"`
+
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -72,6 +77,7 @@ type DNSEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   DNSEndpointSpec   `json:"spec,omitempty"`
 	Status DNSEndpointStatus `json:"status,omitempty"`
 }

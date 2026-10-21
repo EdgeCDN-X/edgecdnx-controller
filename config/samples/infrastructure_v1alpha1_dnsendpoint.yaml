@@ -3,6 +3,10 @@ kind: DNSEndpoint
 metadata:
   name: test1-edgecdnx-com
 spec:
+  project:
+    name: tenant-demo
+  zone:
+    name: edgecdnx-com
   dnsName: test1.edgecdnx.com
   routingPolicy: Geolocation
   recordTTL: 10
@@ -16,6 +20,10 @@ kind: DNSEndpoint
 metadata:
   name: test1-example-com
 spec:
+  project:
+    name: tenant-demo
+  zone:
+    name: example-com
   dnsName: test1.example.com
   routingPolicy: Geolocation
   recordTTL: 10
@@ -29,6 +37,10 @@ kind: DNSEndpoint
 metadata:
   name: test2-edgecdnx-com
 spec:
+  project:
+    name: tenant-demo
+  zone:
+    name: edgecdnx-com
   dnsName: test2.edgecdnx.com
   routingPolicy: Geolocation
   recordTTL: 10
@@ -42,6 +54,10 @@ kind: DNSEndpoint
 metadata:
   name: test2-example-com
 spec:
+  project:
+    name: tenant-demo
+  zone:
+    name: example-com
   dnsName: test2.example.com
   routingPolicy: Geolocation
   recordTTL: 10

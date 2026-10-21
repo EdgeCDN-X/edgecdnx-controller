@@ -1,9 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-demo
+---
 apiVersion: infrastructure.edgecdnx.com/v1alpha1
 kind: Project
 metadata:
   labels:
     app.kubernetes.io/name: edgecdnx-controller
     app.kubernetes.io/managed-by: kustomize
-  name: project-sample
+  name: tenant-demo
+  namespace: tenant-demo
 spec:
-  # TODO(user): Add fields here
+  description: Demo tenant

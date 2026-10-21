@@ -158,6 +158,29 @@ func TestEnqueueExistingMirrorsSelectsCurrentSource(t *testing.T) {
 	}
 }
 
+func TestDownstreamSharedScopePreservesOtherNamespaces(t *testing.T) {
+	ctx := context.Background()
+	scheme := downstreamTestScheme(t)
+	mirror := &infrastructurev1alpha1.Location{ObjectMeta: metav1.ObjectMeta{
+		Name: "outside", Namespace: "other", Labels: map[string]string{DownstreamManagedLabel: "source-a"},
+	}}
+	local := fake.NewClientBuilder().WithScheme(scheme).WithObjects(mirror).Build()
+	reconciler := newTestDownstreamReconciler(t, fake.NewClientBuilder().WithScheme(scheme).Build(), local, DownstreamTargetRouter)
+	reconciler.TargetNamespace = "edgecdnx"
+	if err := reconciler.enqueueExistingMirrors(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if reconciler.queue.Len() != 0 {
+		t.Fatal("out-of-scope mirrors must not be queued")
+	}
+	if err := reconciler.reconcileKey(ctx, downstreamQueueKey{Kind: "Location", Key: client.ObjectKeyFromObject(mirror)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := local.Get(ctx, client.ObjectKeyFromObject(mirror), &infrastructurev1alpha1.Location{}); err != nil {
+		t.Fatalf("out-of-scope mirror was deleted: %v", err)
+	}
+}
+
 func TestDownstreamSyncPreservesNamespaceAndLocalStatus(t *testing.T) {
 	ctx := context.Background()
 	scheme := downstreamTestScheme(t)

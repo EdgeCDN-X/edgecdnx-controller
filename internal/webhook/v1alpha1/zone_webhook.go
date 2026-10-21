@@ -68,7 +68,7 @@ func (v *ZoneCustomValidator) ValidateZoneOverlaps(ctx context.Context, zone *in
 
 	var overlappingZones []string
 	for _, existingZone := range zones.Items {
-		if existingZone.Name == zone.Name {
+		if existingZone.Name == zone.Name && existingZone.Namespace == zone.Namespace {
 			continue // skip self on update
 		}
 		if dns.IsSubDomain(fmt.Sprintf("%s.", zone.Spec.Zone), fmt.Sprintf("%s.", existingZone.Spec.Zone)) || dns.IsSubDomain(fmt.Sprintf("%s.", existingZone.Spec.Zone), fmt.Sprintf("%s.", zone.Spec.Zone)) {

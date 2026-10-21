@@ -17,9 +17,14 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/api/core/v1"
+)
+
 // LocationSpecApplyConfiguration represents a declarative configuration of the LocationSpec type for use
 // with apply.
 type LocationSpecApplyConfiguration struct {
+	Project           *v1.LocalObjectReference                       `json:"project,omitempty"`
 	FallbackLocations []string                                       `json:"fallbackLocations,omitempty"`
 	Nodes             []NodeSpecApplyConfiguration                   `json:"nodes,omitempty"`
 	GeoLookup         *GeoLookupSpecApplyConfiguration               `json:"geoLookup,omitempty"`
@@ -34,6 +39,14 @@ type LocationSpecApplyConfiguration struct {
 // apply.
 func LocationSpec() *LocationSpecApplyConfiguration {
 	return &LocationSpecApplyConfiguration{}
+}
+
+// WithProject sets the Project field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Project field is set to the value of the last call.
+func (b *LocationSpecApplyConfiguration) WithProject(value v1.LocalObjectReference) *LocationSpecApplyConfiguration {
+	b.Project = &value
+	return b
 }
 
 // WithFallbackLocations adds the given value to the FallbackLocations field in the declarative configuration

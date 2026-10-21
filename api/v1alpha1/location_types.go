@@ -108,6 +108,10 @@ type NodeGroupSpec struct {
 
 // LocationSpec defines the desired state of Location.
 type LocationSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
+	Project *corev1.LocalObjectReference `json:"project"`
 
 	// Specifies the list of locations that this location can fall back to.
 	// +listType=set
@@ -212,6 +216,7 @@ type Location struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   LocationSpec   `json:"spec,omitempty"`
 	Status LocationStatus `json:"status,omitempty"`
 }

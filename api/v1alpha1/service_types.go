@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -131,6 +132,11 @@ type PathSpec struct {
 
 // ServiceSpec defines the desired state of Service.
 type ServiceSpec struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
+	Project *corev1.LocalObjectReference `json:"project"`
+
 	// Service Name. Descriptive name for the service
 	Name string `json:"name,omitempty"`
 	// FQDN for the service
@@ -197,6 +203,7 @@ type Service struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:Required
 	Spec   ServiceSpec   `json:"spec,omitempty"`
 	Status ServiceStatus `json:"status,omitempty"`
 }
