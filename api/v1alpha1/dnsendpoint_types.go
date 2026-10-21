@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -52,6 +53,9 @@ type DNSEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 	// Used with Geolocation, Weighted, RoundRobin routing policies.
 	RouteSelector *metav1.LabelSelector `json:"routeSelector,omitempty"`
+
+	// Zone specifies the DNS zone for the DNSEndpoint. Edit dnsendpoint_types.go to remove/update
+	Zone *corev1.LocalObjectReference `json:"zone,omitempty"`
 }
 
 // DNSEndpointStatus defines the observed state of DNSEndpoint.

@@ -109,10 +109,16 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupServiceWebhookWithManager(mgr, []string{"local", "internal", "private"})
+	err = SetupServiceWebhookWithManager(mgr, []string{"local", "internal", "private"}, true)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = SetupZoneWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = SetupDNSEndpointWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = SetupPrefixListWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:webhook

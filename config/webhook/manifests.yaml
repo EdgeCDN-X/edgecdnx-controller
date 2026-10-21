@@ -10,6 +10,46 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-infrastructure-edgecdnx-com-v1alpha1-dnsendpoint
+  failurePolicy: Fail
+  name: vdnsendpoint-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - infrastructure.edgecdnx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dnsendpoints
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-edgecdnx-com-v1alpha1-prefixlist
+  failurePolicy: Fail
+  name: vprefixlist-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - infrastructure.edgecdnx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - prefixlists
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-infrastructure-edgecdnx-com-v1alpha1-service
   failurePolicy: Fail
   name: vservice-v1alpha1.kb.io

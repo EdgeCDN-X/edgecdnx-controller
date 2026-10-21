@@ -36,12 +36,13 @@ import (
 var servicelog = logf.Log.WithName("service-resource")
 
 // SetupServiceWebhookWithManager registers the webhook for Service in the manager.
-func SetupServiceWebhookWithManager(mgr ctrl.Manager, blockedUpstreamTLDs []string) error {
+func SetupServiceWebhookWithManager(mgr ctrl.Manager, blockedUpstreamTLDs []string, cachingReconcilerEnabled bool) error {
 
 	return ctrl.NewWebhookManagedBy(mgr, &v1alpha1.Service{}).
 		WithValidator(&ServiceCustomValidator{
-			Client:              mgr.GetClient(),
-			BlockedUpstreamTLDs: normaliseUpstreamTLDs(blockedUpstreamTLDs),
+			Client:                   mgr.GetClient(),
+			BlockedUpstreamTLDs:      normaliseUpstreamTLDs(blockedUpstreamTLDs),
+			CachingReconcilerEnabled: cachingReconcilerEnabled,
 		}).
 		Complete()
 }
@@ -59,8 +60,9 @@ func SetupServiceWebhookWithManager(mgr ctrl.Manager, blockedUpstreamTLDs []stri
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as this struct is used only for temporary operations and does not need to be deeply copied.
 type ServiceCustomValidator struct {
-	Client              client.Client
-	BlockedUpstreamTLDs []string
+	Client                   client.Client
+	BlockedUpstreamTLDs      []string
+	CachingReconcilerEnabled bool
 }
 
 func normaliseUpstreamTLDs(tlds []string) []string {
@@ -82,6 +84,10 @@ func normaliseUpstreamTLDs(tlds []string) []string {
 }
 
 func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *v1alpha1.Service) (admission.Warnings, error) {
+	if !v.CachingReconcilerEnabled {
+		return nil, fmt.Errorf("Service requires the cachingreconciler feature gate to be enabled")
+	}
+
 	services := &v1alpha1.ServiceList{}
 	err := v.Client.List(ctx, services)
 	if err != nil {
