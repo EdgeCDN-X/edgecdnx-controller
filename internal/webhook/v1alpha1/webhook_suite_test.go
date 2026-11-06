@@ -112,6 +112,9 @@ var _ = BeforeSuite(func() {
 	err = SetupPrefixListWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = SetupHealthCheckProfileWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = SetupProjectWebhookWithManager(mgr, tenancy.Scope{Namespaced: true})
 	Expect(err).NotTo(HaveOccurred())
 	SetupTenancyWebhookWithManager(mgr, tenancy.Scope{Namespaced: true})
