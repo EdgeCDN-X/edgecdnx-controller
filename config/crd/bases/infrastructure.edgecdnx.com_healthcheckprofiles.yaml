@@ -52,8 +52,14 @@ spec:
                         is ASSUME.
                       properties:
                         stack:
+                          default: Dual
                           description: Stack indicates the IP stack type for this
-                            static healthcheck probe (IPv4, IPv6, or Dual).
+                            static healthcheck probe (IPv4, IPv6, or Dual). Defaults
+                            to Dual.
+                          enum:
+                          - IPv4
+                          - IPv6
+                          - Dual
                           type: string
                         status:
                           description: Status is the health value returned without
@@ -91,8 +97,14 @@ spec:
                           - https
                           type: string
                         stack:
+                          default: Dual
                           description: Stack indicates the IP stack type for this
                             HTTP or HTTPS healthcheck probe (IPv4, IPv6, or Dual).
+                            Defaults to Dual.
+                          enum:
+                          - IPv4
+                          - IPv6
+                          - Dual
                           type: string
                         target:
                           description: Override target. If omitted, IPv4 or IPv6 will
@@ -117,8 +129,10 @@ spec:
                           minimum: 1
                           type: integer
                         stack:
+                          default: Dual
                           description: Stack indicates the IP stack type for this
-                            TCP healthcheck probe (IPv4, IPv6, or Dual).
+                            TCP healthcheck probe (IPv4, IPv6, or Dual). Defaults
+                            to Dual.
                           enum:
                           - IPv4
                           - IPv6

@@ -38,8 +38,9 @@ type TCPHealthCheckProbeSpec struct {
 	Port int32 `json:"port"`
 	// Target is the IP address or hostname to connect to for the TCP healthcheck. If omitted, the node's IP stack will be used.
 	Target string `json:"target,omitempty"`
-	// Stack indicates the IP stack type for this TCP healthcheck probe (IPv4, IPv6, or Dual).
+	// Stack indicates the IP stack type for this TCP healthcheck probe (IPv4, IPv6, or Dual). Defaults to Dual.
 	// +kubebuilder:validation:Enum=IPv4;IPv6;Dual
+	// +kubebuilder:default=Dual
 	Stack StackType `json:"stack,omitempty"`
 }
 
@@ -59,7 +60,9 @@ type HTTPHealthCheckProbeSpec struct {
 	Path string `json:"path,omitempty"`
 	// Host header to be used with the HTTP or HTTPS request.
 	Host string `json:"host,omitempty"`
-	// Stack indicates the IP stack type for this HTTP or HTTPS healthcheck probe (IPv4, IPv6, or Dual).
+	// Stack indicates the IP stack type for this HTTP or HTTPS healthcheck probe (IPv4, IPv6, or Dual). Defaults to Dual.
+	// +kubebuilder:validation:Enum=IPv4;IPv6;Dual
+	// +kubebuilder:default=Dual
 	Stack StackType `json:"stack,omitempty"`
 }
 
@@ -67,7 +70,9 @@ type HTTPHealthCheckProbeSpec struct {
 type AssumeHealthCheckProbeSpec struct {
 	// Status is the health value returned without performing an active healthcheck.
 	Status AssumedHealthStatus `json:"status"`
-	// Stack indicates the IP stack type for this static healthcheck probe (IPv4, IPv6, or Dual).
+	// Stack indicates the IP stack type for this static healthcheck probe (IPv4, IPv6, or Dual). Defaults to Dual.
+	// +kubebuilder:validation:Enum=IPv4;IPv6;Dual
+	// +kubebuilder:default=Dual
 	Stack StackType `json:"stack,omitempty"`
 }
 
