@@ -104,6 +104,15 @@ type HealthCheckProfileSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
 	Project *corev1.LocalObjectReference `json:"project"`
 
+	// SuccessThreshold is the consecutive successes required for each probe and IP stack to become healthy.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=1
+	SuccessThreshold int32 `json:"successThreshold,omitempty"`
+	// FailureThreshold is the consecutive failures required for each probe and IP stack to become unhealthy.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=1
+	FailureThreshold int32 `json:"failureThreshold,omitempty"`
+
 	// Probes defines the healthchecks that can be applied to locations or nodes.
 	// +kubebuilder:validation:MinItems=1
 	// +listType=map

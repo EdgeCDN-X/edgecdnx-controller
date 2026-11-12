@@ -40,6 +40,13 @@ spec:
           spec:
             description: HealthCheckProfileSpec defines the desired state of HealthCheckProfile.
             properties:
+              failureThreshold:
+                default: 1
+                description: FailureThreshold is the consecutive failures required
+                  for each probe and IP stack to become unhealthy.
+                format: int32
+                minimum: 1
+                type: integer
               probes:
                 description: Probes defines the healthchecks that can be applied to
                   locations or nodes.
@@ -195,6 +202,13 @@ spec:
                   rule: has(self.name) && self.name != ''
                 - message: project is immutable
                   rule: self == oldSelf
+              successThreshold:
+                default: 1
+                description: SuccessThreshold is the consecutive successes required
+                  for each probe and IP stack to become healthy.
+                format: int32
+                minimum: 1
+                type: integer
             required:
             - project
             type: object

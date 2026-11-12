@@ -91,6 +91,20 @@ Namespace-per-project placement supports Kubernetes namespace RBAC isolation. Sh
 
 API keys now use `spec.project` instead of `spec.projectRef`. Before installing the stricter CRDs/webhooks, stage a permissive schema accepting the new field and backfill Project references on existing resources and manifests, including Locations. Move tenants into their intended namespaces and give Projects matching names in dedicated mode. Kubernetes namespaces and object names cannot be changed in place, so recreate resources when necessary. Update API clients and GitOps manifests, then install the generated strict CRDs and enable admission enforcement. Do not switch placement modes until existing resources satisfy the new placement policy.
 
+### Healthcheck Thresholds
+
+HealthCheckProfile accepts optional `spec.successThreshold` and
+`spec.failureThreshold` integers, each with a minimum and default of `1`.
+Existing profiles and manifests omitting these fields retain one-result
+transitions; no profile backfill is required.
+
+The settings apply independently to every probe and IP stack. A transition
+requires consecutive successes or failures; the opposite result resets the
+streak. Probes start unhealthy and require `successThreshold` successes to
+become healthy. Counters stay in healthchecker memory, are never written to
+Kubernetes, and reset on process restart or profile/location configuration changes.
+Install the updated CRD before configuring thresholds through the API.
+
 ### Downstream Mode
 
 Run one downstream instance per upstream cluster and target type. The upstream kubeconfig must provide `get`, `list`, and `watch` access to the target CRDs. Upstream informers deliver changes reactively; a paginated sweep of only this source's local mirrors runs at startup to recover deletions missed while the downstream process was offline. The downstream instance uses its local service account to create, update, and delete mirrored resources and create missing namespaces. Upstream status and Kubernetes-managed fields are not copied.
@@ -178,4 +192,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
