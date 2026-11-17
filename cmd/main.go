@@ -35,8 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
-
+	apisixv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	monv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -44,7 +43,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/caching"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/featuregate"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
@@ -59,8 +58,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(apisixv2.AddToScheme(scheme))
 	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
-	utilruntime.Must(argoprojv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
 	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
@@ -107,6 +106,9 @@ func main() {
 	var downstreamBurst int
 	var featureGates string
 
+	// Reconciler class
+	var reconcilerClass string
+
 	// Secure URLs
 	var secureUrlsEndpoint string
 	var blockedUpstreamTLDs string
@@ -143,6 +145,7 @@ func main() {
 	flag.IntVar(&downstreamWorkers, "downstream-workers", controller.DownstreamWorkers, "Number of concurrent downstream resource workers.")
 	flag.Float64Var(&downstreamQPS, "downstream-client-qps", 100, "Kubernetes client QPS; set negative to disable client-side throttling.")
 	flag.IntVar(&downstreamBurst, "downstream-client-burst", 200, "Kubernetes client burst for downstream synchronization.")
+	flag.StringVar(&reconcilerClass, "reconciler-class", "ingress-nginx", "The reconciler class to use for the service cache controller.")
 
 	flag.StringVar(
 		&throwerChartRepository,
@@ -407,31 +410,8 @@ func main() {
 		if err = (&controller.ServiceReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-			ClusterIssuerName: clusterIssuerName,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
-			os.Exit(1)
-		}
-
-		if err = (&controller.ChallengeReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       throwerChartName,
-				ThrowerChartVersion:    throwerChartVersion,
-				ThrowerChartRepository: throwerChartRepository,
-				TargetNamespace:        infrastructureTargetNamespace,
-				ApplicationSetProject:  infrastructureApplicationSetProject,
-			},
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Challenge")
 			os.Exit(1)
 		}
 	}
@@ -468,23 +448,27 @@ func main() {
 	}
 
 	if role == RoleCacheController {
-		if err = (&controller.ServiceCacheReconciler{
-			Client:             mgr.GetClient(),
-			Scheme:             mgr.GetScheme(),
-			SecureUrlsEndpoint: secureUrlsEndpoint,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ServiceCache")
-			os.Exit(1)
-		}
-	}
+		setupLog.Info("Using reconciler class", "reconcilerClass", reconcilerClass)
 
-	if role == RoleRouter {
-		if err = (&controller.ServiceRoutingReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ServiceRouting")
-			os.Exit(1)
+		switch reconcilerClass {
+		case caching.NginxIngressReconcilerClass:
+			if err = (&caching.ServiceCacheReconciler{
+				Client:             mgr.GetClient(),
+				Scheme:             mgr.GetScheme(),
+				SecureUrlsEndpoint: secureUrlsEndpoint,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "ServiceCache")
+				os.Exit(1)
+			}
+		case caching.ApacheApisixReconcilerClass:
+			if err = (&caching.ApacheApisixCacheReconciler{
+				Client:             mgr.GetClient(),
+				Scheme:             mgr.GetScheme(),
+				SecureUrlsEndpoint: secureUrlsEndpoint,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "ApacheApisixCache")
+				os.Exit(1)
+			}
 		}
 	}
 

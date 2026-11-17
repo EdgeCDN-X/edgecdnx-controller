@@ -21,6 +21,9 @@ type ZoneSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
 	Project *corev1.LocalObjectReference `json:"project"`
 
+	// Sharing permits other projects to allocate service-managed hostnames, not arbitrary DNS records.
+	Sharing *ResourceSharing `json:"sharing,omitempty"`
+
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 

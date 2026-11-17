@@ -73,7 +73,11 @@ type NodeGroupSpec struct {
 	// Name is the name of the node group. - this mostly identifies the Cache type and does not have to be unique across node groups within a location. For example, multiple node groups with the same cache type can be created for redundancy.
 	Name string `json:"name"`
 	// Flavor further distinguishes the node group. This can be used to specify different cache flavors (e.g., different Nginx versions or configurations) within the same cache type. The combination of Name and Flavor should be unique within a location to avoid ambiguity.
-	Flavor string `json:"flavor"`
+	// Deprecated. Flavor is now part of Metadata.
+	// +optional
+	// +kubebuilder:default=""
+	// +kubebuilder:deprecatedversion:warning="Flavor is deprecated and should be specified in Metadata instead."
+	Flavor string `json:"flavor,omitempty"`
 	// Nodes is the list of nodes that are part of this node group. If used in this context Caches are ignored in NodeSpec.
 	// +listType=map
 	// +listMapKey=name
@@ -102,6 +106,9 @@ type LocationSpec struct {
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="project name is required"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="project is immutable"
 	Project *corev1.LocalObjectReference `json:"project"`
+
+	// Sharing permits other projects to route through this location without managing it.
+	Sharing *ResourceSharing `json:"sharing,omitempty"`
 
 	// Specifies the list of locations that this location can fall back to.
 	// +listType=set

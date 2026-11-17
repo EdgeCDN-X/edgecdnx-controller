@@ -52,7 +52,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects creation when the referenced zone does not exist", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 
 			_, err := validator.ValidateCreate(context.Background(), obj)
 			Expect(err).To(MatchError(`zone "example-zone" does not exist in namespace "default"`))
@@ -60,7 +60,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("admits creation when the referenced zone exists in the same namespace", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RecordTTL = 300
@@ -83,7 +83,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects updates when the referenced zone does not exist", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 
 			_, err := validator.ValidateUpdate(context.Background(), oldObj, obj)
 			Expect(err).To(MatchError(`zone "example-zone" does not exist in namespace "default"`))
@@ -91,7 +91,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("admits updates when the referenced zone exists in the same namespace", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RecordTTL = 300
@@ -109,7 +109,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("requires routeSelector for weighted, geolocation, and round-robin routing on create and update", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			zone := &infrastructurev1alpha1.Zone{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "example-zone"},
 			}
@@ -127,7 +127,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects a duplicate owner and record type regardless of DNS name case or trailing dot", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "WWW.EXAMPLE.COM"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RoutingPolicy = "RoundRobin"
@@ -142,7 +142,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			existing := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "existing-record"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "example-zone"}, DNSName: "www.example.com.",
+					Zone: &corev1.ObjectReference{Name: "example-zone"}, DNSName: "www.example.com.",
 					RecordType: "A", RoutingPolicy: "Geolocation",
 					RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"region": "us-east"}},
 				},
@@ -155,7 +155,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects a dynamic endpoint when a Simple endpoint already has the same owner and type", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RoutingPolicy = "Weighted"
@@ -168,7 +168,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			existing := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "simple-record"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
+					Zone: &corev1.ObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
 					RecordType: "A", RoutingPolicy: "Simple", Targets: []string{"192.0.2.1"},
 				},
 			}
@@ -180,7 +180,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects a dynamic address endpoint when a Simple CNAME exists at the owner", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RoutingPolicy = "Geolocation"
@@ -193,7 +193,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			existing := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "simple-alias"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
+					Zone: &corev1.ObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
 					RecordType: "CNAME", RoutingPolicy: "Simple", Targets: []string{"edge.example.net."},
 				},
 			}
@@ -205,7 +205,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects a CNAME when another record type already exists at its owner", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "CNAME"
 			obj.Spec.RecordTTL = 300
@@ -218,7 +218,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			existing := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "existing-record"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
+					Zone: &corev1.ObjectReference{Name: "example-zone"}, DNSName: "www.example.com",
 					RecordType: "A", RoutingPolicy: "Simple", Targets: []string{"192.0.2.1"},
 				},
 			}
@@ -230,7 +230,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects MX targets that are CNAMEs in another zone", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "example.com"
 			obj.Spec.RecordType = "MX"
 			obj.Spec.RecordTTL = 300
@@ -248,7 +248,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			cname := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "mail-alias"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "other-zone"}, DNSName: "mail.other.net",
+					Zone: &corev1.ObjectReference{Name: "other-zone"}, DNSName: "mail.other.net",
 					RecordType: "CNAME", RoutingPolicy: "Simple", Targets: []string{"edge.example.net."},
 				},
 			}
@@ -260,7 +260,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects creating a CNAME for an existing MX target", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "mail.example.com"
 			obj.Spec.RecordType = "CNAME"
 			obj.Spec.RecordTTL = 300
@@ -273,7 +273,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 			existing := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "mail-exchange"},
 				Spec: infrastructurev1alpha1.DNSEndpointSpec{
-					Zone: &corev1.LocalObjectReference{Name: "example-zone"}, DNSName: "example.com",
+					Zone: &corev1.ObjectReference{Name: "example-zone"}, DNSName: "example.com",
 					RecordType: "MX", RoutingPolicy: "Simple", Targets: []string{"10 mail.example.com."},
 				},
 			}
@@ -285,7 +285,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("rejects malformed address record data and out-of-range TTLs", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "www.example.com"
 			obj.Spec.RecordType = "A"
 			obj.Spec.RecordTTL = 300
@@ -319,7 +319,7 @@ var _ = Describe("DNSEndpoint Webhook", func() {
 
 		It("allows only A and AAAA record types with non-Simple routing", func() {
 			obj.Namespace = "default"
-			obj.Spec.Zone = &corev1.LocalObjectReference{Name: "example-zone"}
+			obj.Spec.Zone = &corev1.ObjectReference{Name: "example-zone"}
 			obj.Spec.DNSName = "example.com"
 			obj.Spec.RouteSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"region": "us-east"}}
 			zone := &infrastructurev1alpha1.Zone{

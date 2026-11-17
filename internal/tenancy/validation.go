@@ -61,6 +61,9 @@ func (s Scope) ValidateResource(ctx context.Context, reader client.Reader, objec
 	if !project.DeletionTimestamp.IsZero() {
 		return fmt.Errorf("project %q is being deleted", project.Name)
 	}
+	if err := ValidateSharing(ctx, reader, object, oldObject); err != nil {
+		return err
+	}
 	validateReference := func(name string, target client.Object) error {
 		if name == "" {
 			return fmt.Errorf("referenced resource name is required")
@@ -82,7 +85,17 @@ func (s Scope) ValidateResource(ctx context.Context, reader client.Reader, objec
 	switch resource := object.(type) {
 	case *api.DNSEndpoint:
 		if resource.Spec.Zone != nil {
-			return validateReference(resource.Spec.Zone.Name, &api.Zone{})
+			if err := ValidateZoneReference(resource); err != nil {
+				return err
+			}
+			zone := &api.Zone{}
+			if err := reader.Get(ctx, resource.ZoneKey(), zone); err != nil {
+				return fmt.Errorf("resolve spec.zone: %w", err)
+			}
+			if err := s.ValidateNamespace(zone.Namespace); err != nil {
+				return err
+			}
+			return ValidateZoneUse(ctx, reader, resource, zone)
 		}
 	case *api.PrefixList:
 		return validateReference(resource.Spec.Destination, &api.Location{})

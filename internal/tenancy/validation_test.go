@@ -35,7 +35,7 @@ func TestResourceOwnership(t *testing.T) {
 	if err := scope.ValidateResource(context.Background(), reader, service, old); err == nil {
 		t.Fatal("project reassignment must be rejected")
 	}
-	endpoint := &api.DNSEndpoint{ObjectMeta: service.ObjectMeta, Spec: api.DNSEndpointSpec{Project: service.Spec.Project, Zone: &corev1.LocalObjectReference{Name: "zone"}}}
+	endpoint := &api.DNSEndpoint{ObjectMeta: service.ObjectMeta, Spec: api.DNSEndpointSpec{Project: service.Spec.Project, Zone: &corev1.ObjectReference{Name: "zone"}}}
 	if err := scope.ValidateResource(context.Background(), reader, endpoint, nil); err == nil {
 		t.Fatal("cross-project zone must be rejected")
 	}
@@ -59,7 +59,7 @@ func TestSharedResourceOwnership(t *testing.T) {
 	scope := Scope{TargetNamespace: metadata.Namespace}
 	for _, object := range []client.Object{
 		&api.APIKey{ObjectMeta: metadata, Spec: api.APIKeySpec{Project: reference}},
-		&api.DNSEndpoint{ObjectMeta: metadata, Spec: api.DNSEndpointSpec{Project: reference, Zone: &corev1.LocalObjectReference{Name: zone.Name}}},
+		&api.DNSEndpoint{ObjectMeta: metadata, Spec: api.DNSEndpointSpec{Project: reference, Zone: &corev1.ObjectReference{Name: zone.Name}}},
 		&api.HealthCheckProfile{ObjectMeta: metadata, Spec: api.HealthCheckProfileSpec{Project: reference}},
 		&api.Location{ObjectMeta: metadata, Spec: api.LocationSpec{Project: reference, Parent: location.Name}},
 		&api.PrefixList{ObjectMeta: metadata, Spec: api.PrefixListSpec{Project: reference, Destination: location.Name}},

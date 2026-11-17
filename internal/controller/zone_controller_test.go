@@ -63,7 +63,7 @@ func TestZoneReconcilerLifecycle(t *testing.T) {
 			}}
 			endpoint := &infrastructurev1alpha1.DNSEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Name: "record", Namespace: zone.Namespace},
-				Spec:       infrastructurev1alpha1.DNSEndpointSpec{Zone: &corev1.LocalObjectReference{Name: zone.Name}},
+				Spec:       infrastructurev1alpha1.DNSEndpointSpec{Zone: &corev1.ObjectReference{Name: zone.Name}},
 			}
 			if endpointFinalizer != "" {
 				endpoint.Finalizers = []string{endpointFinalizer}

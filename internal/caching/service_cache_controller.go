@@ -4,7 +4,7 @@ Owner TboTech s.r.o., Slovakia
 Part of EdgeCDN-X
 */
 
-package controller
+package caching
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	networkingv1 "k8s.io/api/networking/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -287,13 +288,13 @@ func (r *ServiceCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		// Update Service Status to Healthy
 		service.Status = infrastructurev1alpha1.ServiceStatus{
-			Status: HealthStatusHealthy,
+			Status: controller.HealthStatusHealthy,
 		}
 
 		return ctrl.Result{}, r.Status().Update(ctx, service)
 	} else {
 		service.Status = infrastructurev1alpha1.ServiceStatus{
-			Status: HealthStatusProgressing,
+			Status: controller.HealthStatusProgressing,
 		}
 		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}

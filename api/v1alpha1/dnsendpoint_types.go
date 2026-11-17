@@ -49,8 +49,9 @@ type DNSEndpointSpec struct {
 	// Used with Geolocation, Weighted, RoundRobin routing policies.
 	RouteSelector *metav1.LabelSelector `json:"routeSelector,omitempty"`
 
-	// Zone specifies the DNS zone for the DNSEndpoint. Edit dnsendpoint_types.go to remove/update
-	Zone *corev1.LocalObjectReference `json:"zone,omitempty"`
+	// Zone references a Zone. An omitted namespace defaults to the DNSEndpoint namespace.
+	// Kind and apiVersion may be omitted; when supplied they must identify an EdgeCDN-X Zone.
+	Zone *corev1.ObjectReference `json:"zone,omitempty"`
 }
 
 // DNSEndpointStatus defines the observed state of DNSEndpoint.

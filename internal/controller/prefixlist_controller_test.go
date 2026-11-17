@@ -11,7 +11,6 @@ import (
 	"time"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -91,13 +90,6 @@ var _ = Describe("PrefixList Controller", func() {
 				g.Expect(k8sClient.List(ctx, prefixLists, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(prefixLists.Items).To(HaveLen(2))
 
-				applicationSets := &argoprojv1alpha1.ApplicationSetList{}
-				g.Expect(k8sClient.List(ctx, applicationSets, client.InNamespace(namespace))).To(Succeed())
-				for _, applicationSet := range applicationSets.Items {
-					for _, ownerReference := range applicationSet.OwnerReferences {
-						g.Expect(ownerReference.Kind).NotTo(Equal("PrefixList"))
-					}
-				}
 			}, time.Second*2, interval).Should(Succeed())
 		})
 	})

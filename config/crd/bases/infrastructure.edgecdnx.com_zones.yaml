@@ -64,6 +64,28 @@ spec:
                   rule: has(self.name) && self.name != ''
                 - message: project is immutable
                   rule: self == oldSelf
+              sharing:
+                description: Sharing permits other projects to allocate service-managed
+                  hostnames, not arbitrary DNS records.
+                properties:
+                  allProjects:
+                    type: boolean
+                  projects:
+                    items:
+                      description: ProjectReference identifies a consuming project.
+                        An omitted namespace means the resource's namespace.
+                      properties:
+                        name:
+                          minLength: 1
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
               zone:
                 description: Zone is the name of the zone.
                 type: string

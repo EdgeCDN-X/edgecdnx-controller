@@ -8,8 +8,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,17 +54,27 @@ func (r *ZoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		if !controllerutil.ContainsFinalizer(zone, zoneCleanupFinalizer) {
 			return ctrl.Result{}, nil
 		}
+		// Shared zones are never cascaded through customer endpoints, even if admission is bypassed.
+		if zone.Spec.Sharing != nil {
+			if err := tenancy.ValidateInfrastructureDeletion(ctx, r.Client, zone); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 
 		endpoints := &infrastructurev1alpha1.DNSEndpointList{}
-		if err := r.List(ctx, endpoints, client.InNamespace(zone.Namespace)); err != nil {
+		if err := r.List(ctx, endpoints); err != nil {
 			return ctrl.Result{}, err
 		}
 
 		pending := false
 		for index := range endpoints.Items {
 			endpoint := &endpoints.Items[index]
-			if endpoint.Spec.Zone == nil || endpoint.Spec.Zone.Name != zone.Name {
+			if endpoint.Spec.Zone == nil || endpoint.ZoneKey() != client.ObjectKeyFromObject(zone) {
 				continue
+			}
+			if endpoint.Namespace != zone.Namespace ||
+				(endpoint.Spec.Project != nil && zone.Spec.Project != nil && !tenancy.SameProject(endpoint, zone)) {
+				return ctrl.Result{}, fmt.Errorf("zone is still in use by another project's endpoint %s", client.ObjectKeyFromObject(endpoint))
 			}
 			pending = true
 			if endpoint.DeletionTimestamp.IsZero() {

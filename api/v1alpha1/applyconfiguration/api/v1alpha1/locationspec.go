@@ -15,6 +15,7 @@ import (
 // with apply.
 type LocationSpecApplyConfiguration struct {
 	Project           *v1.LocalObjectReference                       `json:"project,omitempty"`
+	Sharing           *ResourceSharingApplyConfiguration             `json:"sharing,omitempty"`
 	FallbackLocations []string                                       `json:"fallbackLocations,omitempty"`
 	Nodes             []NodeSpecApplyConfiguration                   `json:"nodes,omitempty"`
 	GeoLookup         *GeoLookupSpecApplyConfiguration               `json:"geoLookup,omitempty"`
@@ -36,6 +37,14 @@ func LocationSpec() *LocationSpecApplyConfiguration {
 // If called multiple times, the Project field is set to the value of the last call.
 func (b *LocationSpecApplyConfiguration) WithProject(value v1.LocalObjectReference) *LocationSpecApplyConfiguration {
 	b.Project = &value
+	return b
+}
+
+// WithSharing sets the Sharing field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Sharing field is set to the value of the last call.
+func (b *LocationSpecApplyConfiguration) WithSharing(value *ResourceSharingApplyConfiguration) *LocationSpecApplyConfiguration {
+	b.Sharing = value
 	return b
 }
 

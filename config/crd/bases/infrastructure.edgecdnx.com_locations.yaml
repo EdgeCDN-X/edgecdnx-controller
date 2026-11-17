@@ -142,11 +142,10 @@ spec:
                       - path
                       type: object
                     flavor:
-                      description: Flavor further distinguishes the node group. This
-                        can be used to specify different cache flavors (e.g., different
-                        Nginx versions or configurations) within the same cache type.
-                        The combination of Name and Flavor should be unique within
-                        a location to avoid ambiguity.
+                      default: ""
+                      description: |-
+                        Flavor further distinguishes the node group. This can be used to specify different cache flavors (e.g., different Nginx versions or configurations) within the same cache type. The combination of Name and Flavor should be unique within a location to avoid ambiguity.
+                        Deprecated. Flavor is now part of Metadata.
                       type: string
                     healthCheck:
                       description: HealthCheck references the HealthCheckProfile object
@@ -256,7 +255,6 @@ spec:
                       - name
                       x-kubernetes-list-type: map
                   required:
-                  - flavor
                   - name
                   type: object
                 type: array
@@ -360,6 +358,28 @@ spec:
                   rule: has(self.name) && self.name != ''
                 - message: project is immutable
                   rule: self == oldSelf
+              sharing:
+                description: Sharing permits other projects to route through this
+                  location without managing it.
+                properties:
+                  allProjects:
+                    type: boolean
+                  projects:
+                    items:
+                      description: ProjectReference identifies a consuming project.
+                        An omitted namespace means the resource's namespace.
+                      properties:
+                        name:
+                          minLength: 1
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
               weight:
                 description: Used for weighted routing decisions among locations.
                 format: int32

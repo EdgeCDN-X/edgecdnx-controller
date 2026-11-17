@@ -8,233 +8,209 @@ package controller
 
 import (
 	"context"
-	"encoding/base64"
+	"crypto/md5"
+	"fmt"
+	"reflect"
+	"strings"
 
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
+	"github.com/miekg/dns"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 )
 
-// ServiceReconciler reconciles a Service object
+// ServiceReconciler manages service DNS endpoints on the control plane.
 type ServiceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	builder.ThrowerOptions
-	ClusterIssuerName string
 }
 
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services/finalizers,verbs=update
-// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=zones,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-
 	service := &infrastructurev1alpha1.Service{}
 
 	// Object not found
 	if err := r.Get(ctx, req.NamespacedName, service); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "unable to fetch Service")
-			return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if !service.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(service, serviceAllocationFinalizer) {
+			return r.releaseHostnames(ctx, service)
 		}
-		log.Info("Service resource not found. Ignoring since object must be deleted")
 		return ctrl.Result{}, nil
 	}
 
-	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		serviceRawResource := &infrastructurev1alpha1.Service{
-			TypeMeta: service.TypeMeta,
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   service.Name,
-				Labels: service.Labels,
-			},
-			Spec: service.Spec,
+	desiredNames := make(map[string]struct{})
+	zones := &infrastructurev1alpha1.ZoneList{}
+	if err := r.List(ctx, zones); err != nil {
+		return ctrl.Result{}, err
+	}
+	ownedZones := make([]infrastructurev1alpha1.Zone, 0, len(zones.Items))
+	for _, zone := range zones.Items {
+		if tenancy.SameProject(service, &zone) {
+			ownedZones = append(ownedZones, zone)
 		}
-
-		// ################ START - Certificate Issuance section
-		certBuilder, err := builder.CertBuilderFactory("Service", service.Name, service.Namespace, service.Spec.Domain, cmmeta.ObjectReference{
-			Name:  r.ClusterIssuerName,
-			Kind:  "ClusterIssuer",
-			Group: certmanagerv1.SchemeGroupVersion.Group,
-		})
-
-		if err != nil {
-			log.Error(err, "Failed to create Certificate builder for Service")
-			return ctrl.Result{}, err
-		}
-
-		// Add hostAliases to the certificate DNS names
-		if len(service.Spec.HostAliases) > 0 {
-			var dnsNames []string
-			dnsNames = append(dnsNames, service.Spec.Domain)
-			for _, ha := range service.Spec.HostAliases {
-				dnsNames = append(dnsNames, ha.Name)
-			}
-			certBuilder.WithDNSNames(dnsNames)
-		}
-
-		desiredCert, hash, err := certBuilder.Build()
-		if err != nil {
-			log.Error(err, "Failed to get Certificate for Service")
-			return ctrl.Result{}, err
-		}
-
-		currCert := &certmanagerv1.Certificate{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, currCert)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				log.Info("Creating Certificate for Service", "name", service.Name)
-
-				err = controllerutil.SetControllerReference(service, &desiredCert, r.Scheme)
-				if err != nil {
-					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
-					return ctrl.Result{}, err
-				}
-				return ctrl.Result{}, r.Create(ctx, &desiredCert)
-			}
-
-			log.Error(err, "unable to fetch Certificate for Service")
-			return ctrl.Result{}, err
-		} else {
-			if !currCert.DeletionTimestamp.IsZero() {
-				log.Info("Certificate for Service is being deleted. Skipping reconciliation")
-				return ctrl.Result{}, nil
-			}
-
-			// Update Controller Reference if missing (should not happen tho)
-			if !controllerutil.HasControllerReference(currCert) {
-				err := controllerutil.SetControllerReference(service, currCert, r.Scheme)
-				if err != nil {
-					log.Error(err, "unable to set owner reference on Certificate for Service", "Service", service.Name)
-					return ctrl.Result{Requeue: true}, err
-				}
-				return ctrl.Result{}, r.Update(ctx, currCert)
-			}
-
-			// Update Certificate if spec changed
-			currCertHash, ok := currCert.Annotations[builder.ValuesHashAnnotation]
-			if !ok || currCertHash != hash {
-				log.Info("Updating Certificate for Service", "name", service.Name)
-				currCert.Spec = desiredCert.Spec
-				currCert.Annotations = desiredCert.Annotations
-				return ctrl.Result{}, r.Update(ctx, currCert)
-			}
-		}
-
-		// Check if certificate is issuing
-		for cc := range currCert.Status.Conditions {
-			if currCert.Status.Conditions[cc].Type == certmanagerv1.CertificateConditionReady && currCert.Status.Conditions[cc].Status == cmmeta.ConditionTrue {
-				secret := &corev1.Secret{}
-				err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: currCert.Spec.SecretName}, secret)
-				if err != nil {
-					if apierrors.IsNotFound(err) {
-						return ctrl.Result{}, nil
-					}
-					log.Error(err, "unable to fetch Certificate Secret for Service")
-					return ctrl.Result{}, err
-				}
-
-				// Pass down the certificate to the resource
-				serviceRawResource.Spec.Certificate = infrastructurev1alpha1.CertificateSpec{
-					Key: base64.StdEncoding.EncodeToString(secret.Data["tls.key"]),
-					Crt: base64.StdEncoding.EncodeToString(secret.Data["tls.crt"]),
+	}
+	dnsNames := []string{service.Spec.Domain}
+	for _, hostAlias := range service.Spec.HostAliases {
+		switch hostAlias.TargetType {
+		case "CNAME":
+			continue
+		case "", "DELEGATION":
+			hasOwnedZone := false
+			for _, zone := range ownedZones {
+				if zone.DeletionTimestamp.IsZero() && dns.IsSubDomain(dns.Fqdn(strings.ToLower(zone.Spec.Zone)), dns.Fqdn(strings.ToLower(hostAlias.Name))) {
+					hasOwnedZone = true
+					break
 				}
 			}
-		}
-
-		// ################ START - Application Spec section
-		appsetBuilder, err := builder.AppsetBuilderFactory("Service", service.Name, service.Namespace, r.ThrowerOptions)
-		if err != nil {
-			log.Error(err, "Failed to create ApplicationSet builder for Service")
-			return ctrl.Result{}, err
-		}
-
-		serviceHelmValues := struct {
-			Resources []any `json:"resources"`
-		}{
-			Resources: []any{serviceRawResource},
-		}
-		appsetBuilder.WithHelmValues(serviceHelmValues)
-
-		desiredAppset, hash, err := appsetBuilder.Build()
-		if err != nil {
-			log.Error(err, "Failed to get ApplicationSet for Service")
-			return ctrl.Result{}, err
-		}
-
-		currAppset := &argoprojv1alpha1.ApplicationSet{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, currAppset)
-
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				log.Info("Creating ApplicationSet for Service", "name", service.Name)
-
-				err := controllerutil.SetControllerReference(service, &desiredAppset, r.Scheme)
-				if err != nil {
-					log.Error(err, "unable to set owner reference on ApplicationSet for Service", "Service", service.Name)
-					return ctrl.Result{}, err
+			if !hasOwnedZone {
+				if hostAlias.TargetType == "DELEGATION" {
+					return ctrl.Result{}, fmt.Errorf("DELEGATION host alias %q has no matching zone in the service project", hostAlias.Name)
 				}
-				return ctrl.Result{}, r.Create(ctx, &desiredAppset)
-			} else {
-				log.Error(err, "unable to fetch ApplicationSet for service")
+				log.Info("Skipping unmanaged legacy host alias without an owned zone", "hostAlias", hostAlias.Name)
+				continue
+			}
+		default:
+			return ctrl.Result{}, fmt.Errorf("unsupported host alias targetType %q", hostAlias.TargetType)
+		}
+		dnsNames = append(dnsNames, hostAlias.Name)
+	}
+
+	for i, dnsName := range dnsNames {
+		candidateZones := zones.Items
+		if i > 0 {
+			candidateZones = ownedZones
+		}
+		zone, err := selectServiceZone(service, dnsName, candidateZones)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !tenancy.SameProject(service, zone) {
+			if err := r.reserveHostname(ctx, service, zone); err != nil {
 				return ctrl.Result{}, err
 			}
-		} else {
-			if !currAppset.DeletionTimestamp.IsZero() {
-				log.Info("ApplicationSet for Service is being deleted. Skipping reconciliation")
-				return ctrl.Result{}, nil
+		}
+		for _, recordType := range []string{"A", "AAAA"} {
+			name := serviceDNSEndpointName(service.Name, dnsName, recordType)
+			desiredNames[name] = struct{}{}
+
+			dnsEndpointBuilder, err := builder.DNSEndpointBuilderFactory("Service", name, service.Namespace)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			dnsEndpointBuilder.WithService(*service, dnsName, recordType)
+			desiredDNSEndpoint, hash, err := dnsEndpointBuilder.Build()
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			desiredDNSEndpoint.Spec.Zone = &corev1.ObjectReference{Name: zone.Name, Namespace: zone.Namespace}
+
+			currentDNSEndpoint := &infrastructurev1alpha1.DNSEndpoint{}
+			key := types.NamespacedName{Name: name, Namespace: service.Namespace}
+			if err := r.Get(ctx, key, currentDNSEndpoint); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
+
+				if err := controllerutil.SetControllerReference(service, &desiredDNSEndpoint, r.Scheme); err != nil {
+					return ctrl.Result{}, err
+				}
+				log.Info("Creating DNSEndpoint for Service", "dnsEndpoint", key)
+				if err := r.Create(ctx, &desiredDNSEndpoint); err != nil {
+					return ctrl.Result{}, err
+				}
+				continue
 			}
 
-			currAppsetHash, ok := currAppset.Annotations[builder.ValuesHashAnnotation]
-			if !ok || currAppsetHash != hash {
-				log.Info("Updating ApplicationSet for Service", "name", service.Name)
-				currAppset.Spec = desiredAppset.Spec
-				currAppset.Annotations = desiredAppset.Annotations
-				return ctrl.Result{}, r.Update(ctx, currAppset)
+			if !tenancy.SameProject(service, currentDNSEndpoint) {
+				return ctrl.Result{}, fmt.Errorf("DNSEndpoint %s belongs to another project", key)
+			}
+			currentHash, hasHash := currentDNSEndpoint.Annotations[builder.ValuesHashAnnotation]
+			if hasHash && currentHash == hash && metav1.IsControlledBy(currentDNSEndpoint, service) && reflect.DeepEqual(currentDNSEndpoint.Spec, desiredDNSEndpoint.Spec) {
+				continue
+			}
+
+			currentDNSEndpoint.Spec = desiredDNSEndpoint.Spec
+			currentDNSEndpoint.Annotations = desiredDNSEndpoint.Annotations
+			if err := controllerutil.SetControllerReference(service, currentDNSEndpoint, r.Scheme); err != nil {
+				return ctrl.Result{}, err
+			}
+			log.Info("Updating DNSEndpoint for Service", "dnsEndpoint", key, "oldHash", currentHash, "newHash", hash)
+			if err := r.Update(ctx, currentDNSEndpoint); err != nil {
+				return ctrl.Result{}, err
 			}
 		}
-
-		// ################ END - Application Spec section
-
-		if service.Status.Status != HealthStatusHealthy {
-			service.Status = infrastructurev1alpha1.ServiceStatus{
-				Status: HealthStatusHealthy,
-			}
-			return ctrl.Result{}, r.Status().Update(ctx, service)
-		}
-
-		return ctrl.Result{}, nil
-	} else {
-		// Set status to Pogressing if no satatus
-		service.Status = infrastructurev1alpha1.ServiceStatus{
-			Status: HealthStatusProgressing,
-		}
-		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}
+
+	dnsEndpoints := &infrastructurev1alpha1.DNSEndpointList{}
+	if err := r.List(ctx, dnsEndpoints, client.InNamespace(service.Namespace)); err != nil {
+		return ctrl.Result{}, err
+	}
+	for i := range dnsEndpoints.Items {
+		dnsEndpoint := &dnsEndpoints.Items[i]
+		if !metav1.IsControlledBy(dnsEndpoint, service) {
+			continue
+		}
+		if _, desired := desiredNames[dnsEndpoint.Name]; desired {
+			continue
+		}
+
+		log.Info("Deleting stale DNSEndpoint for Service", "dnsEndpoint", client.ObjectKeyFromObject(dnsEndpoint))
+		if err := r.Delete(ctx, dnsEndpoint); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func serviceDNSEndpointName(serviceName string, dnsName string, recordType string) string {
+	dnsNameHash := md5.Sum([]byte(strings.ToLower(strings.TrimSuffix(dnsName, "."))))
+	suffix := fmt.Sprintf("-%x-%s", dnsNameHash[:6], strings.ToLower(recordType))
+	maxServiceNameLength := validation.DNS1123SubdomainMaxLength - len(suffix)
+	if len(serviceName) > maxServiceNameLength {
+		serviceName = strings.TrimRight(serviceName[:maxServiceNameLength], "-.")
+	}
+
+	return serviceName + suffix
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Service{}).
-		Owns(&argoprojv1alpha1.ApplicationSet{}).
-		Owns(&certmanagerv1.Certificate{}).
+		Owns(&infrastructurev1alpha1.DNSEndpoint{}).
+		Watches(&infrastructurev1alpha1.Zone{}, handler.EnqueueRequestsFromMapFunc(r.servicesForZone)).
 		Complete(r)
+}
+
+func (r *ServiceReconciler) servicesForZone(ctx context.Context, object client.Object) []reconcile.Request {
+	services := &infrastructurev1alpha1.ServiceList{}
+	if err := r.List(ctx, services); err != nil {
+		logf.FromContext(ctx).Error(err, "Unable to list services for zone change")
+		return nil
+	}
+	requests := make([]reconcile.Request, 0, len(services.Items))
+	for i := range services.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&services.Items[i])})
+	}
+	return requests
 }

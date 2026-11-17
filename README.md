@@ -79,13 +79,109 @@ Projects represent tenants. All EdgeCDN-X CRDs remain Kubernetes namespaced reso
 | `--namespaced=true` (default) | One Project per namespace; its `metadata.name` must equal the namespace name | All namespaces |
 | `--namespaced=false --target-namespace=edgecdnx` | Multiple Projects share the configured namespace | Only the target namespace |
 
-Create the namespace and Project before tenant resources. Namespaces are not automatically provisioned by the Project webhook. Every non-Project CRD, including Location, requires an immutable `spec.project: {name: <project-name>}`. References resolve within the resource's namespace and must belong to the same Project, including DNS zones, PrefixList destinations, Location parents/fallbacks, and healthcheck profiles. Create dependencies first; establish cyclic Location fallback relationships through updates after creating the Locations without those references.
+Create the namespace and Project before tenant resources. Namespaces are not automatically provisioned by the Project webhook. Every non-Project CRD, including Location, requires an immutable `spec.project: {name: <project-name>}`. References belong to the same Project by default. PrefixList destinations, Location parents/fallbacks, and healthcheck profiles remain project-local. Zone references can cross namespaces/projects only through the sharing policy below. Create dependencies first; establish cyclic Location fallback relationships through updates after creating the Locations without those references.
 
-Generated Service DNS endpoints inherit the Project and use a matching same-Project Zone. Infrastructure placement is still controlled separately by `--infrastructure-target-namespace`. Infrastructure caches are not restricted by tenant placement flags. Use the same placement configuration for all instances of one deployment; independent deployments must not install overlapping admission webhooks with conflicting policies.
+Generated Service DNS endpoints inherit the Service's Project and use a matching owned or explicitly shared Zone. Infrastructure placement is still controlled separately by `--infrastructure-target-namespace`. Infrastructure caches are not restricted by tenant placement flags. Use the same placement configuration for all instances of one deployment; independent deployments must not install overlapping admission webhooks with conflicting policies.
 
 Admission webhooks must be deployed, reachable, and enabled (`ENABLE_WEBHOOKS` must not be `false`) to enforce placement and reference checks. CRD schemas independently require `spec.project.name` and prevent ownership changes. The stock Kustomize deployment has webhook/certificate integration commented out; enable its WEBHOOK and CERTMANAGER sections, or deploy equivalent TLS and webhook configuration, before relying on tenant admission enforcement.
 
 Namespace-per-project placement supports Kubernetes namespace RBAC isolation. Shared-namespace placement does not: enforce Project authorization in the API layer and restrict tenants' direct Kubernetes access. Project references alone do not grant or restrict access. Project deletion does not automatically delete tenant resources.
+
+#### Shared platform infrastructure
+
+Zones and Locations stay owned by a platform Project; sharing grants consumption,
+never management rights. They are private when `spec.sharing` is absent. For example:
+
+```yaml
+apiVersion: infrastructure.edgecdnx.com/v1alpha1
+kind: Zone
+metadata:
+  name: cdn
+  namespace: platform
+spec:
+  project:
+    name: platform
+  zone: cdn.edgecdnx.com
+  email: noc.edgecdnx.com
+  sharing:
+    projects:
+      - namespace: customer
+        name: customer
+```
+
+Locations accept the same `sharing` field. `sharing: {allProjects: true}` grants
+all projects in this deployment consumption access. An omitted grant namespace
+means the resource's namespace, useful when multiple projects share one namespace.
+In shared-namespace mode, both platform and customer resources must be in the
+configured target namespace.
+
+The Service's primary domain must be a single-label hostname under the shared
+zone, for example `unique-id.cdn.edgecdnx.com`. The API generates this hostname
+using its configured service base domain; GitOps Services can specify it directly.
+The Service reconciler runs only with `--role=controller` and the
+`cachingreconciler` feature gate. Router-role instances do not watch or reconcile
+Services; downstream router targets consume the generated DNSEndpoints.
+The control-plane Service reconciler chooses the longest authorized matching zone and rejects
+ambiguous matches. It atomically reserves shared hostnames using a non-expiring
+coordination Lease in the zone's namespace, held by the Service UID. A Service
+finalizer releases the reservation on deletion. Allocated domains are immutable;
+create a replacement Service to migrate. Do not remove allocation finalizers or
+edit reservation Leases manually.
+
+Generated A/AAAA DNSEndpoints remain in the customer namespace/project, controlled
+by their Service. Their zone reference is now a Kubernetes ObjectReference:
+
+```yaml
+zone:
+  namespace: platform
+  name: cdn
+  # Optional: kind: Zone
+  # Optional: apiVersion: infrastructure.edgecdnx.com/v1alpha1
+```
+
+Legacy `zone: {name: cdn}` manifests continue to resolve in the endpoint namespace.
+If supplied, kind, apiVersion and UID must match the target Zone; fieldPath and
+resourceVersion are not supported. Cross-project references require a shared
+zone, a live owning Service, and its hostname reservation. Tenants cannot create
+arbitrary TXT/CNAME/apex/wildcard records in shared zones or claim another Service's
+hostname. DELEGATION host aliases require an owned matching zone and get A/AAAA
+DNSEndpoints. CNAME aliases are externally managed and get no DNSEndpoints.
+Legacy aliases without targetType get endpoints only when a live owned zone
+matches; otherwise they are left externally managed. Changing an alias to CNAME
+or removing it deletes its previously generated endpoints. The primary
+`spec.domain` always gets A/AAAA endpoints in the Service's project, referencing
+the selected owned or shared Zone by namespace/name; shared-zone reservations
+are managed on the control plane, not by router instances.
+
+Host aliases may specify `targetType: CNAME` or `targetType: DELEGATION`.
+On Service creation and update, DELEGATION aliases must fall within a live
+Zone owned by that same namespace and Project (the zone apex is also allowed).
+A shared Zone owned by another Project does not qualify. CNAME aliases do not
+require an owned Zone in Service admission. An omitted targetType retains
+legacy behavior; no default is written to existing resources.
+
+DNS routing considers owned and explicitly shared Locations, then applies the
+Service's label selector. Sharing does not bypass selectors: avoid a
+customer-specific `project` label selector when intentionally using platform
+Locations. Location hierarchy and healthcheck configuration stay platform-owned.
+Deploy the updated DNS plugin together with these controller changes. The
+existing Apache APISIX cache reconciler remains in place.
+
+Sharing permission removal and infrastructure deletion are blocked while
+dependent services remain; migrate or delete those services first. Existing
+ownership-scoped API CRUD remains unchanged. The API exposes a safe consumption
+catalog at `GET /project/:id/available-infrastructure`; the UI displays shared
+resources read-only. Administrators can manage grants via
+`PATCH /admin/zones/:namespace/:name/sharing` and
+`PATCH /admin/locations/:namespace/:name/sharing`, or use GitOps. PATCH requests
+include `allProjects`, `projects` and the catalog object's `resourceVersion`;
+stale edits return a conflict rather than overwriting another administrator's grants.
+
+Install the regenerated controller and Helm CRDs before applying these fields,
+and deploy the updated webhook configuration (including DELETE validation).
+Keep platform namespace access, sharing policies and hostname reservation Leases
+restricted to trusted administrators/controller identities. In shared-namespace
+mode, tenants must use the authorized API rather than direct Kubernetes writes.
 
 #### Breaking Migration
 

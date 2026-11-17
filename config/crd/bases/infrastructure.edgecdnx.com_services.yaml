@@ -152,6 +152,15 @@ spec:
                     name:
                       description: Host Alias Name
                       type: string
+                    targetType:
+                      description: |-
+                        TargetType selects external CNAME setup or a delegated zone owned by the service project.
+                        An omitted value preserves legacy host-alias behavior.
+                      enum:
+                      - ""
+                      - CNAME
+                      - DELEGATION
+                      type: string
                   required:
                   - name
                   type: object

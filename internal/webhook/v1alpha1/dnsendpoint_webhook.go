@@ -12,9 +12,9 @@ import (
 	"net"
 	"strings"
 
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
 	"github.com/miekg/dns"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -62,17 +62,25 @@ func (v *DNSEndpointCustomValidator) validateSpec(ctx context.Context, dnsendpoi
 		}
 	}
 
-	if dnsendpoint.Spec.Zone == nil || dnsendpoint.Spec.Zone.Name == "" {
-		return nil, fmt.Errorf("spec.zone is required")
+	if err := tenancy.ValidateZoneReference(dnsendpoint); err != nil {
+		return nil, err
 	}
 
 	zone := &infrastructurev1alpha1.Zone{}
-	zoneKey := types.NamespacedName{Namespace: dnsendpoint.Namespace, Name: dnsendpoint.Spec.Zone.Name}
+	zoneKey := dnsendpoint.ZoneKey()
 	if err := v.Client.Get(ctx, zoneKey, zone); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, fmt.Errorf("zone %q does not exist in namespace %q", zoneKey.Name, zoneKey.Namespace)
 		}
 		return nil, fmt.Errorf("failed to get zone %q: %w", zoneKey.Name, err)
+	}
+	if dnsendpoint.Spec.Zone.UID != "" && dnsendpoint.Spec.Zone.UID != zone.UID {
+		return nil, fmt.Errorf("spec.zone.uid does not match the referenced Zone")
+	}
+	if dnsendpoint.Spec.Project != nil && zone.Spec.Project != nil {
+		if err := tenancy.ValidateZoneUse(ctx, v.Client, dnsendpoint, zone); err != nil {
+			return nil, err
+		}
 	}
 	if !validDNSName(zone.Spec.Zone, false) {
 		return nil, fmt.Errorf("zone %q has an invalid DNS name", zone.Spec.Zone)
@@ -97,7 +105,7 @@ func (v *DNSEndpointCustomValidator) validateSpec(ctx context.Context, dnsendpoi
 	}
 
 	endpoints := &infrastructurev1alpha1.DNSEndpointList{}
-	if err := v.Client.List(ctx, endpoints, client.InNamespace(dnsendpoint.Namespace)); err != nil {
+	if err := v.Client.List(ctx, endpoints); err != nil {
 		return nil, fmt.Errorf("failed to list DNS records: %w", err)
 	}
 	if err := validateDNSRecordConflicts(dnsendpoint, endpoints.Items); err != nil {
@@ -171,7 +179,8 @@ func validateDNSRecordTargets(endpoint *infrastructurev1alpha1.DNSEndpoint) erro
 func validateDNSRecordConflicts(endpoint *infrastructurev1alpha1.DNSEndpoint, existing []infrastructurev1alpha1.DNSEndpoint) error {
 	owner := canonicalDNSName(endpoint.Spec.DNSName)
 	recordType := strings.ToUpper(endpoint.Spec.RecordType)
-	zoneName := endpoint.Spec.Zone.Name
+	zoneKey := endpoint.ZoneKey()
+	zoneName := zoneKey.Name
 
 	for index := range existing {
 		other := &existing[index]
@@ -181,7 +190,7 @@ func validateDNSRecordConflicts(endpoint *infrastructurev1alpha1.DNSEndpoint, ex
 		otherOwner := canonicalDNSName(other.Spec.DNSName)
 		otherType := strings.ToUpper(other.Spec.RecordType)
 		sameOwner := owner == otherOwner
-		sameZone := other.Spec.Zone != nil && other.Spec.Zone.Name == zoneName
+		sameZone := other.Spec.Zone != nil && other.ZoneKey() == zoneKey
 
 		if sameOwner && sameZone && recordType == otherType {
 			return fmt.Errorf("DNS record %q type %s already exists in zone %q", endpoint.Spec.DNSName, recordType, zoneName)

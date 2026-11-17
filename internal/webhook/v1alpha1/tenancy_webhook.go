@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// +kubebuilder:webhook:path=/validate-tenancy,mutating=false,failurePolicy=fail,sideEffects=None,groups=infrastructure.edgecdnx.com,resources=projects;apikeys;dnsendpoints;healthcheckprofiles;locations;prefixlists;services;zones,verbs=create;update,versions=v1alpha1,name=tenancy.infrastructure.edgecdnx.com,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-tenancy,mutating=false,failurePolicy=fail,sideEffects=None,groups=infrastructure.edgecdnx.com,resources=projects;apikeys;dnsendpoints;healthcheckprofiles;locations;prefixlists;services;zones,verbs=create;update;delete,versions=v1alpha1,name=tenancy.infrastructure.edgecdnx.com,admissionReviewVersions=v1
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=projects;apikeys;dnsendpoints;healthcheckprofiles;locations;prefixlists;services;zones,verbs=get;list;watch
 
 func SetupTenancyWebhookWithManager(mgr ctrl.Manager, scope tenancy.Scope) {
@@ -29,16 +29,26 @@ type tenancyHandler struct {
 }
 
 func (h *tenancyHandler) Handle(ctx context.Context, request admission.Request) admission.Response {
-	if request.Operation != admissionv1.Create && request.Operation != admissionv1.Update {
+	if request.Operation != admissionv1.Create && request.Operation != admissionv1.Update && request.Operation != admissionv1.Delete {
 		return admission.Allowed("")
 	}
-	decoded, _, err := h.decoder.Decode(request.Object.Raw, nil, nil)
+	raw := request.Object.Raw
+	if request.Operation == admissionv1.Delete {
+		raw = request.OldObject.Raw
+	}
+	decoded, _, err := h.decoder.Decode(raw, nil, nil)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	object, ok := decoded.(client.Object)
 	if !ok {
 		return admission.Denied("expected a Kubernetes resource")
+	}
+	if request.Operation == admissionv1.Delete {
+		if err := tenancy.ValidateInfrastructureDeletion(ctx, h.reader, object); err != nil {
+			return admission.Denied(err.Error())
+		}
+		return admission.Allowed("")
 	}
 	var oldObject client.Object
 	if request.Operation == admissionv1.Update {

@@ -43,10 +43,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.NodeInstanceStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSpec"):
 		return &apiv1alpha1.NodeSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ProjectReference"):
+		return &apiv1alpha1.ProjectReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusAlertMatcherSpec"):
 		return &apiv1alpha1.PrometheusAlertMatcherSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("PrometheusAlertStatus"):
 		return &apiv1alpha1.PrometheusAlertStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ResourceSharing"):
+		return &apiv1alpha1.ResourceSharingApplyConfiguration{}
 
 	}
 	return nil

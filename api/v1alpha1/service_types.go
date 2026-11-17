@@ -104,6 +104,10 @@ type HostAliasSpec struct {
 	Name string `json:"name"`
 	// If SSL Certificate is provided by the user, it will be stored here
 	Certificate CertificateSpec `json:"certificate,omitempty"`
+	// TargetType selects external CNAME setup or a delegated zone owned by the service project.
+	// An omitted value preserves legacy host-alias behavior.
+	// +kubebuilder:validation:Enum="";CNAME;DELEGATION
+	TargetType string `json:"targetType,omitempty"`
 }
 
 type MirrorSpec struct {

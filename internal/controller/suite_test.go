@@ -25,8 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
-	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
-	argoprojv1alpha1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	monv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	// +kubebuilder:scaffold:imports
@@ -69,9 +67,6 @@ var _ = BeforeSuite(func() {
 	err = infrastructurev1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = argoprojv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	err = certmanagerv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -106,28 +101,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	if os.Getenv("ROLE") == ControllerRole && featuregate.Enabled(os.Getenv("FEATURE_GATES"), "cachingreconciler") {
-		err = (&ServiceReconciler{
-			Client: k8sManager.GetClient(),
-			Scheme: k8sManager.GetScheme(),
-			ThrowerOptions: builder.ThrowerOptions{
-				ThrowerChartName:       ThrowerChartName,
-				ThrowerChartVersion:    ThrowerChartVersion,
-				ThrowerChartRepository: ThrowerChartRepository,
-				TargetNamespace:        InfrastructureTargetNamespace,
-				ApplicationSetProject:  InfrastructureApplicationSetProject,
-			},
-			ClusterIssuerName: ClusterIssuerName,
-		}).SetupWithManager(k8sManager)
-		Expect(err).ToNot(HaveOccurred())
-
 		err = (&PrefixListReconciler{
 			Client: k8sManager.GetClient(),
 		}).SetupWithManager(k8sManager)
 		Expect(err).ToNot(HaveOccurred())
 	}
-
-	// TODO router role not yet clear and implemented. CDN functionality is now behind a feature gate.
-	// if os.Getenv("ROLE") == "router" {}
 
 	go func() {
 		defer GinkgoRecover()

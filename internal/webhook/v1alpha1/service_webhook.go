@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
+	"github.com/miekg/dns"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -76,6 +78,34 @@ func normaliseUpstreamTLDs(tlds []string) []string {
 func (v *ServiceCustomValidator) ValidateService(ctx context.Context, service *v1alpha1.Service) (admission.Warnings, error) {
 	if !v.CachingReconcilerEnabled {
 		return nil, fmt.Errorf("Service requires the cachingreconciler feature gate to be enabled")
+	}
+	var delegationAliases []string
+	for _, alias := range service.Spec.HostAliases {
+		switch alias.TargetType {
+		case "", "CNAME":
+		case "DELEGATION":
+			if !validDNSName(alias.Name, false) {
+				return nil, fmt.Errorf("DELEGATION host alias %q must be a valid DNS name", alias.Name)
+			}
+			delegationAliases = append(delegationAliases, alias.Name)
+		default:
+			return nil, fmt.Errorf("host alias %q targetType must be CNAME or DELEGATION", alias.Name)
+		}
+	}
+	if len(delegationAliases) != 0 {
+		zones := &v1alpha1.ZoneList{}
+		if err := v.Client.List(ctx, zones, client.InNamespace(service.Namespace)); err != nil {
+			return nil, fmt.Errorf("failed to list zones for DELEGATION host aliases: %w", err)
+		}
+		for _, name := range delegationAliases {
+			if !slices.ContainsFunc(zones.Items, func(zone v1alpha1.Zone) bool {
+				return zone.DeletionTimestamp.IsZero() && tenancy.SameProject(service, &zone) &&
+					validDNSName(zone.Spec.Zone, false) &&
+					dns.IsSubDomain(dns.Fqdn(strings.ToLower(zone.Spec.Zone)), dns.Fqdn(strings.ToLower(name)))
+			}) {
+				return nil, fmt.Errorf("DELEGATION host alias %q must be covered by a zone in the service project", name)
+			}
+		}
 	}
 
 	services := &v1alpha1.ServiceList{}
@@ -210,6 +240,9 @@ func (v *ServiceCustomValidator) ValidateCreate(ctx context.Context, obj *v1alph
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Service.
 func (v *ServiceCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj *v1alpha1.Service) (admission.Warnings, error) {
 	servicelog.Info("Validation for Service upon update", "name", newObj.GetName())
+	if slices.Contains(oldObj.Finalizers, tenancy.ServiceAllocationFinalizer) && oldObj.Spec.Domain != newObj.Spec.Domain {
+		return nil, fmt.Errorf("an allocated service domain is immutable; create a replacement service to migrate")
+	}
 	return v.ValidateService(ctx, newObj)
 }
 
