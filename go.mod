@@ -4,8 +4,10 @@ go 1.26.0
 
 godebug default=go1.24
 
+// v1.8.5-0.20260813002802-c915316549b7 -> apisix-ingress-controller points to 2.2.0 CRD API.
+
 require (
-	github.com/apache/apisix-ingress-controller v1.8.4
+	github.com/apache/apisix-ingress-controller v1.8.5-0.20260813002802-c915316549b7
 	github.com/cert-manager/cert-manager v1.18.1
 	github.com/miekg/dns v1.1.72
 	github.com/onsi/ginkgo/v2 v2.28.1
@@ -115,4 +117,4 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
-replace github.com/apache/apisix-ingress-controller => ../apisix-ingress-controller
+// replace github.com/apache/apisix-ingress-controller => ../apisix-ingress-controller
