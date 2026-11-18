@@ -211,14 +211,10 @@ spec:
                               - alertName
                               type: object
                             type: array
-                          caches:
-                            description: |-
-                              Caches is the list of caches that are associated with this node.
-                              Deprecated: use NodeGroupSpec.Metadata instead.
-                            items:
-                              type: string
-                            type: array
-                            x-kubernetes-list-type: set
+                          cname:
+                            description: Cname is the canonical name (CNAME) for the
+                              node.
+                            type: string
                           healthCheck:
                             description: HealthCheck references the HealthCheckProfile
                               object applied to this node.
@@ -287,14 +283,9 @@ spec:
                         - alertName
                         type: object
                       type: array
-                    caches:
-                      description: |-
-                        Caches is the list of caches that are associated with this node.
-                        Deprecated: use NodeGroupSpec.Metadata instead.
-                      items:
-                        type: string
-                      type: array
-                      x-kubernetes-list-type: set
+                    cname:
+                      description: Cname is the canonical name (CNAME) for the node.
+                      type: string
                     healthCheck:
                       description: HealthCheck references the HealthCheckProfile object
                         applied to this node.

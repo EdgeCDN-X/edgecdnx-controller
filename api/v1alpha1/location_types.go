@@ -41,10 +41,8 @@ type NodeSpec struct {
 	Ipv4 string `json:"ipv4,omitempty"`
 	// Ipv6 is the IPv6 address of the node.
 	Ipv6 string `json:"ipv6,omitempty"`
-	// Caches is the list of caches that are associated with this node.
-	// +listType=set
-	// Deprecated: use NodeGroupSpec.Metadata instead.
-	Caches []string `json:"caches,omitempty"`
+	// Cname is the canonical name (CNAME) for the node.
+	Cname string `json:"cname,omitempty"`
 	// MaintenanceMode indicates if the node is in maintenance mode.
 	MaintenanceMode bool `json:"maintenanceMode,omitempty"`
 	// Alerts defines which external Prometheus alerts should be reflected for this node.

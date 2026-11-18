@@ -17,7 +17,7 @@ type NodeSpecApplyConfiguration struct {
 	Name            *string                                        `json:"name,omitempty"`
 	Ipv4            *string                                        `json:"ipv4,omitempty"`
 	Ipv6            *string                                        `json:"ipv6,omitempty"`
-	Caches          []string                                       `json:"caches,omitempty"`
+	Cname           *string                                        `json:"cname,omitempty"`
 	MaintenanceMode *bool                                          `json:"maintenanceMode,omitempty"`
 	Alerts          []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
 	HealthCheck     *v1.LocalObjectReference                       `json:"healthCheck,omitempty"`
@@ -53,13 +53,11 @@ func (b *NodeSpecApplyConfiguration) WithIpv6(value string) *NodeSpecApplyConfig
 	return b
 }
 
-// WithCaches adds the given value to the Caches field in the declarative configuration
-// and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the Caches field.
-func (b *NodeSpecApplyConfiguration) WithCaches(values ...string) *NodeSpecApplyConfiguration {
-	for i := range values {
-		b.Caches = append(b.Caches, values[i])
-	}
+// WithCname sets the Cname field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Cname field is set to the value of the last call.
+func (b *NodeSpecApplyConfiguration) WithCname(value string) *NodeSpecApplyConfiguration {
+	b.Cname = &value
 	return b
 }
 
