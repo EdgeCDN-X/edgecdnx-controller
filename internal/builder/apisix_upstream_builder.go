@@ -10,6 +10,7 @@ import (
 
 type IAPISixiUpstreamBuilder interface {
 	WithUpstreams(upstream v1alpha1infrastructure.StaticOriginSpec) IAPISixiUpstreamBuilder
+	WithClass(class string) IAPISixiUpstreamBuilder
 	Build() (apisixv2.ApisixUpstream, string, error)
 }
 
@@ -38,6 +39,10 @@ func (b *APISixUpstreamBuilder) WithUpstreams(upstream v1alpha1infrastructure.St
 		b.upstream.Spec.PassHost = "rewrite"
 	}
 
+	return b
+}
+func (b *APISixUpstreamBuilder) WithClass(class string) IAPISixiUpstreamBuilder {
+	b.upstream.Spec.IngressClassName = class
 	return b
 }
 

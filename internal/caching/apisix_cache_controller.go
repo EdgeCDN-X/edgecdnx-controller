@@ -84,6 +84,7 @@ func (r *ApacheApisixCacheReconciler) reconcileUpstreams(ctx context.Context, se
 			name := apisixUpstreamName(service.Name, i)
 			desiredNames[name] = struct{}{}
 			desired, _, err := builder.APISixUpstreamBuilderFactory(name, service.Namespace).
+				WithClass(service.Spec.Cache).
 				WithUpstreams(origin).
 				Build()
 			if err != nil {
@@ -186,7 +187,7 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 			Namespace: service.Namespace,
 		},
 		Spec: apisixv2.ApisixRouteSpec{
-			IngressClassName: "apisix",
+			IngressClassName: service.Spec.Cache,
 			HTTP: []apisixv2.ApisixRouteHTTP{{
 				Name: "service",
 				Match: apisixv2.ApisixRouteHTTPMatch{
