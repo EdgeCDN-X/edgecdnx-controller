@@ -69,18 +69,7 @@ spec:
                 description: |-
                   Basedomain specifies the base domain for this location.
                   It is used to construct fully qualified domain names for resources within this location.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
+                type: string
               fallbackLocations:
                 description: Specifies the list of locations that this location can
                   fall back to.

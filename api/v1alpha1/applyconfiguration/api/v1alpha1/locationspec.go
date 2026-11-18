@@ -23,7 +23,7 @@ type LocationSpecApplyConfiguration struct {
 	MaintenanceMode   *bool                                          `json:"maintenanceMode,omitempty"`
 	NodeGroups        []NodeGroupSpecApplyConfiguration              `json:"nodeGroups,omitempty"`
 	Alerts            []PrometheusAlertMatcherSpecApplyConfiguration `json:"alerts,omitempty"`
-	BaseDomain        *v1.LocalObjectReference                       `json:"baseDomain,omitempty"`
+	BaseDomain        *string                                        `json:"baseDomain,omitempty"`
 	Parent            *string                                        `json:"parent,omitempty"`
 }
 
@@ -125,7 +125,7 @@ func (b *LocationSpecApplyConfiguration) WithAlerts(values ...*PrometheusAlertMa
 // WithBaseDomain sets the BaseDomain field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the BaseDomain field is set to the value of the last call.
-func (b *LocationSpecApplyConfiguration) WithBaseDomain(value v1.LocalObjectReference) *LocationSpecApplyConfiguration {
+func (b *LocationSpecApplyConfiguration) WithBaseDomain(value string) *LocationSpecApplyConfiguration {
 	b.BaseDomain = &value
 	return b
 }
