@@ -129,6 +129,10 @@ type LocationSpec struct {
 	// Alerts defines location-scoped external Prometheus alerts to be reflected in status.
 	Alerts []PrometheusAlertMatcherSpec `json:"alerts,omitempty"`
 
+	// Basedomain specifies the base domain for this location.
+	// It is used to construct fully qualified domain names for resources within this location.
+	BaseDomain *corev1.LocalObjectReference `json:"baseDomain,omitempty"`
+
 	// This is useful for hierarchical location definitions, where child locations can inherit properties from parent locations. For example, a parent location can define common fallback locations or geo lookup attributes that are shared among multiple child locations. If Parent is specified, FallbackLocations must be empty and cannot be specified. This ensures a clear and unambiguous routing hierarchy, where child locations rely solely on their parent for fallback decisions, rather than having their own separate fallback configurations.
 	Parent string `json:"parent,omitempty"`
 }
