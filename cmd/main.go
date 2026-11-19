@@ -517,6 +517,14 @@ func main() {
 		}
 		webhookinfrastructurev1alpha1.SetupTenancyWebhookWithManager(mgr, tenantScope)
 	}
+
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookinfrastructurev1alpha1.SetupLocationWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Location")
+			os.Exit(1)
+		}
+	}
+
 	// +kubebuilder:scaffold:builder
 	if metricsCertWatcher != nil {
 		setupLog.Info("Adding metrics certificate watcher to manager")

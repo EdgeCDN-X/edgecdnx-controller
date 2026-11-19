@@ -78,6 +78,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-infrastructure-edgecdnx-com-v1alpha1-location
+  failurePolicy: Fail
+  name: vlocation-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - infrastructure.edgecdnx.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - locations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-infrastructure-edgecdnx-com-v1alpha1-prefixlist
   failurePolicy: Fail
   name: vprefixlist-v1alpha1.kb.io
