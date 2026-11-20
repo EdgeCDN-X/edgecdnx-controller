@@ -8,8 +8,6 @@ import (
 
 	api "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/miekg/dns"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,21 +24,12 @@ func ValidateSharing(ctx context.Context, reader client.Reader, object, oldObjec
 	if err := api.ValidateResourceSharing(sharing, object.GetNamespace()); err != nil {
 		return err
 	}
-	if oldObject == nil || reflect.DeepEqual(sharingFor(oldObject), sharing) {
+	// Routing consumers must not prevent location pool changes.
+	if _, ok := object.(*api.Location); ok {
 		return nil
 	}
-	targets := []client.Object{oldObject}
-	if location, ok := oldObject.(*api.Location); ok {
-		children := &api.LocationList{}
-		if err := reader.List(ctx, children, client.InNamespace(location.Namespace)); err != nil {
-			return fmt.Errorf("list location hierarchy: %w", err)
-		}
-		for i := range children.Items {
-			child := &children.Items[i]
-			if child.Spec.Parent == location.Name && SameProject(child, location) {
-				targets = append(targets, child)
-			}
-		}
+	if oldObject == nil || reflect.DeepEqual(sharingFor(oldObject), sharing) {
+		return nil
 	}
 	services := &api.ServiceList{}
 	if err := reader.List(ctx, services); err != nil {
@@ -51,12 +40,10 @@ func ValidateSharing(ctx context.Context, reader client.Reader, object, oldObjec
 		if !CanUse(service, oldObject) || CanUse(service, object) {
 			continue
 		}
-		for _, target := range targets {
-			if uses, err := serviceUses(service, target); err != nil {
-				return err
-			} else if uses {
-				return fmt.Errorf("cannot revoke sharing while service %s uses this resource; migrate or delete the service first", client.ObjectKeyFromObject(service))
-			}
+		if uses, err := serviceUses(service, oldObject); err != nil {
+			return err
+		} else if uses {
+			return fmt.Errorf("cannot revoke sharing while service %s uses this resource; migrate or delete the service first", client.ObjectKeyFromObject(service))
 		}
 	}
 	endpoints := &api.DNSEndpointList{}
@@ -68,12 +55,10 @@ func ValidateSharing(ctx context.Context, reader client.Reader, object, oldObjec
 		if !CanUse(endpoint, oldObject) || CanUse(endpoint, object) {
 			continue
 		}
-		for _, target := range targets {
-			if uses, err := endpointUses(endpoint, target); err != nil {
-				return err
-			} else if uses {
-				return fmt.Errorf("cannot revoke sharing while DNS endpoint %s uses this resource", client.ObjectKeyFromObject(endpoint))
-			}
+		if uses, err := endpointUses(endpoint, oldObject); err != nil {
+			return err
+		} else if uses {
+			return fmt.Errorf("cannot revoke sharing while DNS endpoint %s uses this resource", client.ObjectKeyFromObject(endpoint))
 		}
 	}
 	return nil
@@ -83,17 +68,6 @@ func endpointUses(endpoint *api.DNSEndpoint, object client.Object) (bool, error)
 	switch resource := object.(type) {
 	case *api.Zone:
 		return endpoint.Spec.Zone != nil && endpoint.ZoneKey() == client.ObjectKeyFromObject(resource), nil
-	case *api.Location:
-		if endpoint.Spec.RoutingPolicy == "Failover" {
-			return slices.Contains(endpoint.Spec.Targets, resource.Name) || slices.Contains(endpoint.Spec.Targets, resource.Namespace+"/"+resource.Name), nil
-		}
-		if endpoint.Spec.RoutingPolicy != "Geolocation" && endpoint.Spec.RoutingPolicy != "Weighted" && endpoint.Spec.RoutingPolicy != "RoundRobin" {
-			return false, nil
-		}
-		source := &api.Service{ObjectMeta: endpoint.ObjectMeta, Spec: api.ServiceSpec{
-			Project: endpoint.Spec.Project, RouteSelector: endpoint.Spec.RouteSelector,
-		}}
-		return serviceUses(source, resource)
 	}
 	return false, nil
 }
@@ -103,27 +77,6 @@ func serviceUses(service *api.Service, object client.Object) (bool, error) {
 	case *api.Zone:
 		for _, domain := range append([]api.HostAliasSpec{{Name: service.Spec.Domain}}, service.Spec.HostAliases...) {
 			if domain.Name != "" && dns.IsSubDomain(dns.Fqdn(resource.Spec.Zone), dns.Fqdn(domain.Name)) {
-				return true, nil
-			}
-		}
-	case *api.Location:
-		selector, err := metav1.LabelSelectorAsSelector(service.Spec.RouteSelector)
-		if err != nil {
-			return false, fmt.Errorf("invalid selector on service %s: %w", client.ObjectKeyFromObject(service), err)
-		}
-		// A nil service selector means all usable locations.
-		if service.Spec.RouteSelector == nil || selector.Matches(labels.Set(resource.Labels)) {
-			return true, nil
-		}
-		for _, group := range resource.Spec.NodeGroups {
-			effective := make(labels.Set, len(resource.Labels)+len(group.Labels))
-			for key, value := range resource.Labels {
-				effective[key] = value
-			}
-			for key, value := range group.Labels {
-				effective[key] = value
-			}
-			if selector.Matches(effective) {
 				return true, nil
 			}
 		}
@@ -165,6 +118,7 @@ func ValidateInfrastructureDeletion(ctx context.Context, reader client.Reader, o
 				return fmt.Errorf("location is still referenced by location %s", client.ObjectKeyFromObject(other))
 			}
 		}
+		return nil
 	default:
 		return nil
 	}

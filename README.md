@@ -167,8 +167,15 @@ Locations. Location hierarchy and healthcheck configuration stay platform-owned.
 Deploy the updated DNS plugin together with these controller changes. The
 existing Apache APISIX cache reconciler remains in place.
 
-Sharing permission removal and infrastructure deletion are blocked while
-dependent services remain; migrate or delete those services first. Existing
+Zone sharing permission removal and deletion are blocked while dependent
+Services or DNSEndpoints remain; migrate or delete those consumers first.
+Location sharing revocation and deletion are not blocked by Service/DNSEndpoint
+consumers, allowing operators to replace or retire location pools. Location
+deletion still rejects local parent, fallback, and PrefixList references.
+Location ownership, sharing-policy format, base-domain Zone membership, and
+healthcheck/reference validation remain enforced on create and update. Removing
+a Location or its sharing can remove routing capacity; provision replacements
+beforehand when uninterrupted service is required. Existing
 ownership-scoped API CRUD remains unchanged. The API exposes a safe consumption
 catalog at `GET /project/:id/available-infrastructure`; the UI displays shared
 resources read-only. Administrators can manage grants via
