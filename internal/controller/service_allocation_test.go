@@ -7,6 +7,7 @@ import (
 
 	api "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,7 +22,7 @@ import (
 func TestSharedServiceAllocation(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	for _, register := range []func(*runtime.Scheme) error{api.AddToScheme, coordinationv1.AddToScheme} {
+	for _, register := range []func(*runtime.Scheme) error{api.AddToScheme, coordinationv1.AddToScheme, corev1.AddToScheme, certmanagerv1.AddToScheme} {
 		if err := register(scheme); err != nil {
 			t.Fatal(err)
 		}

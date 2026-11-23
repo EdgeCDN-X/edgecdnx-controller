@@ -15,6 +15,7 @@ import (
 
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/tenancy"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/miekg/dns"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +36,8 @@ import (
 // ServiceReconciler manages service DNS endpoints on the control plane.
 type ServiceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme            *runtime.Scheme
+	ClusterIssuerName string
 }
 
 // +kubebuilder:rbac:groups=infrastructure.edgecdnx.com,resources=services,verbs=get;list;watch
@@ -179,6 +181,10 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
+	if err := r.reconcileServiceCertificates(ctx, service); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -195,9 +201,17 @@ func serviceDNSEndpointName(serviceName string, dnsName string, recordType strin
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &certmanagerv1.Certificate{}, certificateSecretIndex, func(object client.Object) []string {
+		certificate := object.(*certmanagerv1.Certificate)
+		return []string{certificate.Spec.SecretName}
+	}); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha1.Service{}).
 		Owns(&infrastructurev1alpha1.DNSEndpoint{}).
+		Owns(&certmanagerv1.Certificate{}).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.servicesForCertificateSecret)).
 		Watches(&infrastructurev1alpha1.Zone{}, handler.EnqueueRequestsFromMapFunc(r.servicesForZone)).
 		Complete(r)
 }

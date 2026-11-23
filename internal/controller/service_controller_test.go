@@ -2,14 +2,18 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
@@ -42,6 +46,14 @@ var _ = Describe("Service Controller", func() {
 	})
 
 	AfterEach(func() {
+		certificates := &certmanagerv1.CertificateList{}
+		Expect(k8sClient.List(ctx, certificates, client.InNamespace("default"), client.MatchingLabels{serviceCertificateLabel: "true"})).To(Succeed())
+		for i := range certificates.Items {
+			owner := metav1.GetControllerOf(&certificates.Items[i])
+			if owner != nil && owner.Name == resourceName && owner.Kind == "Service" {
+				Expect(k8sClient.Delete(ctx, &certificates.Items[i])).To(Succeed())
+			}
+		}
 		for _, dnsName := range []string{"routing-test.edgecdnx.com", "routing-alias.example.com"} {
 			for _, recordType := range []string{"A", "AAAA"} {
 				dnsEndpoint := &infrastructurev1alpha1.DNSEndpoint{}
@@ -125,5 +137,34 @@ var _ = Describe("Service Controller", func() {
 			}
 			Expect(k8sClient.Get(ctx, aliasKey, aliasEndpoint)).To(MatchError(apierrors.IsNotFound, "IsNotFound"))
 		}
+	})
+
+	It("copies a ready certificate secret into the Service", func() {
+		reconciler := &ServiceReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), ClusterIssuerName: "test-issuer"}
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: serviceKey})
+		Expect(err).NotTo(HaveOccurred())
+
+		name := serviceDNSEndpointName(resourceName, "routing-alias.example.com", "cert")
+		certificate := &certmanagerv1.Certificate{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: "default"}, certificate)).To(Succeed())
+		Expect(certificate.Spec.IssuerRef.Name).To(Equal("test-issuer"))
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Data: map[string][]byte{corev1.TLSCertKey: []byte("certificate"), corev1.TLSPrivateKeyKey: []byte("private-key")}}
+		Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, secret))).To(Succeed()) })
+		certificate.Status.Conditions = []certmanagerv1.CertificateCondition{{
+			Type: certmanagerv1.CertificateConditionReady, Status: cmmeta.ConditionTrue, ObservedGeneration: certificate.Generation,
+		}}
+		Expect(k8sClient.Status().Update(ctx, certificate)).To(Succeed())
+		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: serviceKey})
+		Expect(err).NotTo(HaveOccurred())
+
+		service := &infrastructurev1alpha1.Service{}
+		Expect(k8sClient.Get(ctx, serviceKey, service)).To(Succeed())
+		Expect(service.Spec.HostAliases[0].Certificate).To(Equal(infrastructurev1alpha1.CertificateSpec{
+			CertificateRef: name, SecretRef: name,
+			Crt: base64.StdEncoding.EncodeToString([]byte("certificate")),
+			Key: base64.StdEncoding.EncodeToString([]byte("private-key")),
+		}))
 	})
 })

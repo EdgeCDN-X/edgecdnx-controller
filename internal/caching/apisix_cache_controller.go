@@ -9,6 +9,7 @@ package caching
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/builder"
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	apisixv2 "github.com/apache/apisix-ingress-controller/api/v2"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,29 +56,33 @@ func (r *ApacheApisixCacheReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
+	tlsErr := r.reconcileTLS(ctx, service)
+	if tlsErr != nil {
+		log.Error(tlsErr, "unable to reconcile APISIX TLS", "Service", service.Name)
+	}
+
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
 		log.Info("Service has a non-empty status")
 
 		if err := r.reconcileUpstreams(ctx, service); err != nil {
 			log.Error(err, "unable to reconcile APISIX upstreams", "Service", service.Name)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Join(tlsErr, err)
 		}
 		if err := r.reconcileRoute(ctx, service); err != nil {
 			log.Error(err, "unable to reconcile APISIX route", "Service", service.Name)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, errors.Join(tlsErr, err)
 		}
 
 	} else {
 		service.Status = infrastructurev1alpha1.ServiceStatus{
 			Status: controller.HealthStatusProgressing,
 		}
-		return ctrl.Result{}, r.Status().Update(ctx, service)
+		return ctrl.Result{}, errors.Join(tlsErr, r.Status().Update(ctx, service))
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, tlsErr
 }
 
-// +kubebuilder:rbac:groups=apisix.apache.org,resources=apisixroutes;apisixupstreams,verbs=get;list;watch;create;update;patch;delete
 func (r *ApacheApisixCacheReconciler) reconcileUpstreams(ctx context.Context, service *infrastructurev1alpha1.Service) error {
 	desiredNames := make(map[string]struct{}, len(service.Spec.StaticOrigins))
 	if service.Spec.OriginType == infrastructurev1alpha1.OriginTypeStatic {
@@ -243,5 +249,7 @@ func (r *ApacheApisixCacheReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&infrastructurev1alpha1.Service{}).
 		Owns(&apisixv2.ApisixUpstream{}).
 		Owns(&apisixv2.ApisixRoute{}).
+		Owns(&apisixv2.ApisixTls{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }

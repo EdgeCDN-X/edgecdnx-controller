@@ -160,6 +160,30 @@ A shared Zone owned by another Project does not qualify. CNAME aliases do not
 require an owned Zone in Service admission. An omitted targetType retains
 legacy behavior; no default is written to existing resources.
 
+With the `cachingreconciler` feature gate enabled, the control-plane Service
+controller creates a cert-manager Certificate for the primary domain and each
+host alias that has no user-provided certificate or reference. The ClusterIssuer
+is selected with `--cluster-issuer-name` (default `edgecdnx`). Certificates have
+the `solver-target` label set to `cname` for CNAME aliases and `delegation` for
+the primary domain, DELEGATION aliases, and legacy aliases without a targetType.
+Configure the ClusterIssuer solvers accordingly.
+
+When a Certificate is ready, its Secret's `tls.crt` and `tls.key` are base64
+encoded into the corresponding Service certificate fields, together with the
+managed certificate and secret references. Renewals update the Service so its
+downstream cache mirror receives the new material. Existing user-supplied
+certificate fields are preserved. To replace a managed certificate with a
+user-supplied one, replace its certificate fields and clear the managed
+`certificateRef`; set `secretRef` to the desired cache Secret name. Removing
+an alias deletes its managed Certificate; cert-manager's configuration
+determines whether its Secret is also deleted. The APISIX cache controller
+creates a TLS Secret at the certificate's `secretRef` and an ApisixTls resource for each domain or alias
+with inline certificate material. Inline `crt` and `key` must both be base64
+encoded, match each other, cover the hostname, and include a valid `secretRef`.
+The controller will not overwrite Secrets or ApisixTls resources it does not
+manage. Changes and renewals update the resources; removing a certificate or
+alias removes its generated resources. Ingress-nginx is deprecated.
+
 DNS routing considers owned and explicitly shared Locations, then applies the
 Service's label selector. Sharing does not bypass selectors: avoid a
 customer-specific `project` label selector when intentionally using platform

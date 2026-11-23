@@ -25,9 +25,35 @@ rules:
   - update
   - watch
 - apiGroups:
+  - apisix.apache.org
+  resources:
+  - apisixroutes
+  - apisixtlses
+  - apisixupstreams
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - apps
   resources:
   - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
   verbs:
   - create
   - delete
