@@ -166,7 +166,9 @@ host alias that has no user-provided certificate or reference. The ClusterIssuer
 is selected with `--cluster-issuer-name` (default `edgecdnx`). Certificates have
 the `solver-target` label set to `cname` for CNAME aliases and `delegation` for
 the primary domain, DELEGATION aliases, and legacy aliases without a targetType.
-Configure the ClusterIssuer solvers accordingly.
+Configure the ClusterIssuer solvers accordingly: DNS-01 for `delegation` and
+HTTP-01 for `cname`. HTTP-01 requires the CNAME to resolve to the CDN and
+port 80 to reach every eligible cache.
 
 When a Certificate is ready, its Secret's `tls.crt` and `tls.key` are base64
 encoded into the corresponding Service certificate fields, together with the
@@ -252,6 +254,21 @@ downstream:
 ```
 
 The standalone binary accepts the same configuration through `--role=downstream`, `--target=router|cache`, and `--upstream-kubeconfig=/path/to/kubeconfig`.
+
+For APISIX caches, set `downstream.http01SolverImage` to a cert-manager
+`acmesolver` image (or pass `--downstream-http01-solver-image`). The downstream
+controller watches upstream HTTP-01 Challenges owned by managed CNAME
+certificates and creates a local solver Pod, Service, and exact-match
+`ApisixRoute`. It removes them when the Challenge completes or disappears and
+recovers missed deletions after a restart. The upstream identity needs read
+access to Challenges, Orders, Certificates, and CertificateRequests; the local
+identity needs access to Pods, Services, and ApisixRoutes. APISIX global plugins
+and redirects must allow the challenge path without authentication or rewriting.
+
+Propagation is asynchronous: cert-manager's self-check does not establish that
+all caches are ready. ACME validation may fail and need a retry if it reaches
+a cache before its route is installed. The issuer still creates its standard
+temporary solver resources in the control cluster.
 
 ## Project Distribution
 

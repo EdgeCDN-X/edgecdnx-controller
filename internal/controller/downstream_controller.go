@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
+	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -43,16 +44,17 @@ type downstreamQueueKey struct {
 }
 
 type DownstreamReconciler struct {
-	TargetNamespace string
-	UpstreamCache   ctrlcache.Cache
-	UpstreamReader  client.Reader
-	Local           client.Client
-	Target          DownstreamTarget
-	SourceID        string
-	Workers         int
-	queue           workqueue.TypedRateLimitingInterface[downstreamQueueKey]
-	kinds           map[string]downstreamResourceKind
-	namespaces      sync.Map
+	TargetNamespace   string
+	UpstreamCache     ctrlcache.Cache
+	UpstreamReader    client.Reader
+	Local             client.Client
+	Target            DownstreamTarget
+	SourceID          string
+	Workers           int
+	HTTP01SolverImage string
+	queue             workqueue.TypedRateLimitingInterface[downstreamQueueKey]
+	kinds             map[string]downstreamResourceKind
+	namespaces        sync.Map
 }
 
 var stripManagedFields = ctrlcache.TransformStripManagedFields()
@@ -119,6 +121,31 @@ func (r *DownstreamReconciler) RegisterHandlers(ctx context.Context) error {
 			return fmt.Errorf("register upstream %s event handler: %w", kind.name, err)
 		}
 	}
+	if r.Target == DownstreamTargetCache && r.HTTP01SolverImage != "" {
+		informer, err := r.UpstreamCache.GetInformer(ctx, &acmev1.Challenge{})
+		if err != nil {
+			return fmt.Errorf("get upstream Challenge informer: %w", err)
+		}
+		_, err = informer.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
+			AddFunc: func(object interface{}) { r.enqueueObject("Challenge", object) },
+			UpdateFunc: func(oldObject, newObject interface{}) {
+				oldResource, oldOK := oldObject.(*acmev1.Challenge)
+				newResource, newOK := newObject.(*acmev1.Challenge)
+				if oldOK && newOK && reflect.DeepEqual(oldResource.Spec, newResource.Spec) &&
+					reflect.DeepEqual(oldResource.Status, newResource.Status) &&
+					oldResource.UID == newResource.UID &&
+					reflect.DeepEqual(oldResource.OwnerReferences, newResource.OwnerReferences) &&
+					reflect.DeepEqual(oldResource.DeletionTimestamp, newResource.DeletionTimestamp) {
+					return
+				}
+				r.enqueueObject("Challenge", newObject)
+			},
+			DeleteFunc: func(object interface{}) { r.enqueueObject("Challenge", object) },
+		})
+		if err != nil {
+			return fmt.Errorf("register upstream Challenge event handler: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -179,6 +206,11 @@ func (r *DownstreamReconciler) Start(ctx context.Context) error {
 	}
 	if err := r.enqueueExistingMirrors(ctx); err != nil {
 		return fmt.Errorf("enqueue existing downstream mirrors: %w", err)
+	}
+	if r.Target == DownstreamTargetCache && r.HTTP01SolverImage != "" {
+		if err := r.enqueueExistingSolvers(ctx); err != nil {
+			return fmt.Errorf("enqueue existing HTTP-01 solvers: %w", err)
+		}
 	}
 
 	var workers sync.WaitGroup
@@ -244,6 +276,9 @@ func downstreamResourceKinds(target DownstreamTarget) ([]downstreamResourceKind,
 func (r *DownstreamReconciler) reconcileKey(ctx context.Context, key downstreamQueueKey) error {
 	if r.TargetNamespace != "" && key.Key.Namespace != r.TargetNamespace {
 		return nil
+	}
+	if key.Kind == "Challenge" && r.Target == DownstreamTargetCache && r.HTTP01SolverImage != "" {
+		return r.reconcileHTTP01Challenge(ctx, key.Key)
 	}
 	kind, exists := r.kinds[key.Kind]
 	if !exists {

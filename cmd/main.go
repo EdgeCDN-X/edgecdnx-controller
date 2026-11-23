@@ -104,6 +104,7 @@ func main() {
 	var downstreamWorkers int
 	var downstreamQPS float64
 	var downstreamBurst int
+	var downstreamHTTP01SolverImage string
 	var featureGates string
 
 	// Reconciler class
@@ -145,6 +146,7 @@ func main() {
 	flag.IntVar(&downstreamWorkers, "downstream-workers", controller.DownstreamWorkers, "Number of concurrent downstream resource workers.")
 	flag.Float64Var(&downstreamQPS, "downstream-client-qps", 100, "Kubernetes client QPS; set negative to disable client-side throttling.")
 	flag.IntVar(&downstreamBurst, "downstream-client-burst", 200, "Kubernetes client burst for downstream synchronization.")
+	flag.StringVar(&downstreamHTTP01SolverImage, "downstream-http01-solver-image", "", "Enable APISIX HTTP-01 solvers on downstream caches using this acmesolver image.")
 	flag.StringVar(&reconcilerClass, "reconciler-class", "ingress-nginx", "The reconciler class to use for the service cache controller.")
 
 	flag.StringVar(
@@ -239,9 +241,15 @@ func main() {
 			upstreamConfig.RateLimiter = nil
 		}
 		syncPeriod := time.Duration(0)
+		upstreamObjects := tenantScope.CacheObjects()
+		if upstreamObjects != nil && downstreamHTTP01SolverImage != "" && downstreamTarget == string(controller.DownstreamTargetCache) {
+			for _, object := range []client.Object{&acmev1.Challenge{}, &acmev1.Order{}, &certmanagerv1.CertificateRequest{}, &certmanagerv1.Certificate{}} {
+				upstreamObjects[object] = ctrlcache.ByObject{Namespaces: map[string]ctrlcache.Config{tenantScope.TargetNamespace: {}}}
+			}
+		}
 		upstreamCache, err = ctrlcache.New(upstreamConfig, ctrlcache.Options{
 			Scheme:           scheme,
-			ByObject:         tenantScope.CacheObjects(),
+			ByObject:         upstreamObjects,
 			SyncPeriod:       &syncPeriod,
 			DefaultTransform: controller.DownstreamCacheTransform,
 		})
@@ -392,6 +400,7 @@ func main() {
 			setupLog.Error(createErr, "unable to create downstream controller")
 			os.Exit(1)
 		}
+		downstream.HTTP01SolverImage = downstreamHTTP01SolverImage
 		if !tenantScope.Namespaced {
 			downstream.TargetNamespace = tenantScope.TargetNamespace
 		}
