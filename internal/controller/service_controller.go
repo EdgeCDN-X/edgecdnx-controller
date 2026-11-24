@@ -185,7 +185,17 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
+		service.Status = infrastructurev1alpha1.ServiceStatus{
+			Status: HealthStatusHealthy,
+		}
+		return ctrl.Result{}, r.Status().Update(ctx, service)
+	} else {
+		service.Status = infrastructurev1alpha1.ServiceStatus{
+			Status: HealthStatusProgressing,
+		}
+		return ctrl.Result{}, r.Status().Update(ctx, service)
+	}
 }
 
 func serviceDNSEndpointName(serviceName string, dnsName string, recordType string) string {
