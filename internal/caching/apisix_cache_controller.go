@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -61,28 +60,29 @@ func (r *ApacheApisixCacheReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	tlsErr := r.reconcileTLS(ctx, service)
 	if tlsErr != nil {
 		log.Error(tlsErr, "unable to reconcile APISIX TLS", "Service", service.Name)
+		return ctrl.Result{}, tlsErr
 	}
 
 	if service.Status != (infrastructurev1alpha1.ServiceStatus{}) {
-		log.Info("Service has a non-empty status")
-
 		if err := r.reconcileUpstreams(ctx, service); err != nil {
 			log.Error(err, "unable to reconcile APISIX upstreams", "Service", service.Name)
-			return ctrl.Result{}, errors.Join(tlsErr, err)
+			return ctrl.Result{}, err
 		}
 		if err := r.reconcileRoute(ctx, service); err != nil {
 			log.Error(err, "unable to reconcile APISIX route", "Service", service.Name)
-			return ctrl.Result{}, errors.Join(tlsErr, err)
+			return ctrl.Result{}, err
 		}
 
+		service.Status = infrastructurev1alpha1.ServiceStatus{
+			Status: controller.HealthStatusHealthy,
+		}
+		return ctrl.Result{}, r.Status().Update(ctx, service)
 	} else {
 		service.Status = infrastructurev1alpha1.ServiceStatus{
 			Status: controller.HealthStatusProgressing,
 		}
-		return ctrl.Result{}, errors.Join(tlsErr, r.Status().Update(ctx, service))
+		return ctrl.Result{}, r.Status().Update(ctx, service)
 	}
-
-	return ctrl.Result{}, tlsErr
 }
 
 func (r *ApacheApisixCacheReconciler) reconcileUpstreams(ctx context.Context, service *infrastructurev1alpha1.Service) error {
