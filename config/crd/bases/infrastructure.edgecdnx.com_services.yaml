@@ -197,6 +197,26 @@ spec:
                   rewrite:
                     description: If not null, rewrite engine is enabled for the rule
                     type: string
+                  rewrites:
+                    description: Ordered rewrite rules. The first matching pattern
+                      takes precedence.
+                    items:
+                      properties:
+                        pattern:
+                          description: Regular expression matched against the request
+                            URI path.
+                          minLength: 1
+                          type: string
+                        replacement:
+                          description: Replacement URI path; capture groups can be
+                            referenced as $1, $2, etc.
+                          type: string
+                      required:
+                      - pattern
+                      - replacement
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
                 type: object
               project:
                 description: |-

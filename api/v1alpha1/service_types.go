@@ -117,11 +117,22 @@ type MirrorSpec struct {
 	HostHeader string `json:"hostHeader,omitempty"`
 }
 
+type PathRewriteRule struct {
+	// Regular expression matched against the request URI path.
+	// +kubebuilder:validation:MinLength=1
+	Pattern string `json:"pattern"`
+	// Replacement URI path; capture groups can be referenced as $1, $2, etc.
+	Replacement string `json:"replacement"`
+}
+
 type PathSpec struct {
 	// Specifies the Path for the ingres rule. If not set, defaults to /
 	Paths []string `json:"paths,omitempty"`
 	// If not null, rewrite engine is enabled for the rule
 	Rewrite string `json:"rewrite,omitempty"`
+	// Ordered rewrite rules. The first matching pattern takes precedence.
+	// +listType=atomic
+	Rewrites []PathRewriteRule `json:"rewrites,omitempty"`
 }
 
 // ServiceSpec defines the desired state of Service.

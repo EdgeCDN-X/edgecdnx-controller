@@ -2,6 +2,9 @@ package caching
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 
 	infrastructurev1alpha1 "github.com/EdgeCDN-X/edgecdnx-controller/api/v1alpha1"
@@ -15,6 +18,179 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+func TestApacheApisixRouteRewrites(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := infrastructurev1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := apisixv2.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	service := &infrastructurev1alpha1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "edge-service", Namespace: "tenant"},
+		Spec: infrastructurev1alpha1.ServiceSpec{
+			OriginType:    infrastructurev1alpha1.OriginTypeStatic,
+			StaticOrigins: []infrastructurev1alpha1.StaticOriginSpec{{Upstream: "origin.example"}},
+			Cache:         "apisix",
+			Cors:          infrastructurev1alpha1.CorsSpec{AllowOrigin: "https://example.com"},
+			Path: infrastructurev1alpha1.PathSpec{
+				Paths:   []string{"/images/*", "/files/*"},
+				Rewrite: "/legacy",
+			},
+		},
+	}
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(service).Build()
+	reconciler := &ApacheApisixCacheReconciler{Client: k8sClient, Scheme: scheme}
+
+	check := func(want []string) {
+		t.Helper()
+		if err := reconciler.reconcileRoute(ctx, service); err != nil {
+			t.Fatal(err)
+		}
+		route := &apisixv2.ApisixRoute{}
+		if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(service), route); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(route.Spec.HTTP[0].Match.Paths, service.Spec.Path.Paths) {
+			t.Fatalf("route paths changed: %v", route.Spec.HTTP[0].Match.Paths)
+		}
+		plugins := make(map[string]apisixv2.ApisixRoutePlugin)
+		for _, plugin := range route.Spec.HTTP[0].Plugins {
+			plugins[plugin.Name] = plugin
+		}
+		if !plugins["proxy-cache"].Enable || !plugins["cors"].Enable {
+			t.Fatal("proxy-cache and CORS plugins should be preserved")
+		}
+		plugin, found := plugins["proxy-rewrite"]
+		if want == nil {
+			if found {
+				t.Fatal("proxy-rewrite should be absent")
+			}
+			return
+		}
+		if !found || !plugin.Enable {
+			t.Fatal("proxy-rewrite should be enabled")
+		}
+		var config struct {
+			RegexURI []string `json:"regex_uri"`
+		}
+		if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(config.RegexURI, want) {
+			t.Fatalf("regex_uri = %#v, want %#v", config.RegexURI, want)
+		}
+	}
+
+	check(nil)
+	service.Spec.Path.Rewrites = []infrastructurev1alpha1.PathRewriteRule{
+		{Pattern: "^/images/(.*)$", Replacement: "/assets/$1"},
+		{Pattern: "^/files/(.*)$", Replacement: "/$1"},
+	}
+	check([]string{"^/images/(.*)$", "/assets/$1", "^/files/(.*)$", "/$1"})
+	service.Spec.Path.Rewrites = []infrastructurev1alpha1.PathRewriteRule{
+		{Pattern: "^/files/(.*)$", Replacement: "/new/$1"},
+		{Pattern: "^/images/(.*)$", Replacement: "/assets/$1"},
+	}
+	check([]string{"^/files/(.*)$", "/new/$1", "^/images/(.*)$", "/assets/$1"})
+	service.Spec.Path.Rewrites = nil
+	check(nil)
+}
+
+func TestApacheApisixRouteCORS(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := infrastructurev1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := apisixv2.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	service := &infrastructurev1alpha1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "edge-service", Namespace: "tenant"},
+		Spec: infrastructurev1alpha1.ServiceSpec{
+			OriginType:    infrastructurev1alpha1.OriginTypeStatic,
+			StaticOrigins: []infrastructurev1alpha1.StaticOriginSpec{{Upstream: "origin.example"}},
+			Cache:         "apisix",
+		},
+	}
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(service).Build()
+	reconciler := &ApacheApisixCacheReconciler{Client: k8sClient, Scheme: scheme}
+
+	check := func(want map[string]any) {
+		t.Helper()
+		if err := reconciler.reconcileRoute(ctx, service); err != nil {
+			t.Fatal(err)
+		}
+		route := &apisixv2.ApisixRoute{}
+		if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(service), route); err != nil {
+			t.Fatal(err)
+		}
+		var found *apisixv2.ApisixRoutePlugin
+		cacheFound := false
+		for i := range route.Spec.HTTP[0].Plugins {
+			plugin := &route.Spec.HTTP[0].Plugins[i]
+			if plugin.Name == "cors" {
+				found = plugin
+			}
+			if plugin.Name == "proxy-cache" && plugin.Enable {
+				cacheFound = true
+			}
+		}
+		if !cacheFound {
+			t.Fatal("proxy-cache plugin should be preserved")
+		}
+		if want == nil {
+			if found != nil {
+				t.Fatal("CORS plugin should be absent")
+			}
+			return
+		}
+		if found == nil || !found.Enable {
+			t.Fatal("CORS plugin should be enabled")
+		}
+		var config map[string]any
+		if err := json.Unmarshal(found.Config.Raw, &config); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(config, want) {
+			t.Fatalf("CORS config = %#v, want %#v", config, want)
+		}
+	}
+
+	check(nil)
+	service.Spec.Cors = infrastructurev1alpha1.CorsSpec{
+		AllowOrigin:      "https://one.example, https://two.example",
+		AllowMethods:     "GET, POST",
+		AllowCredentials: true,
+	}
+	check(map[string]any{
+		"allow_origins":    "https://one.example,https://two.example",
+		"allow_methods":    "GET,POST",
+		"allow_credential": true,
+		"allow_headers":    "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization",
+	})
+	service.Spec.Cors = infrastructurev1alpha1.CorsSpec{AllowOrigin: "https://one.example"}
+	check(map[string]any{"allow_origins": "https://one.example", "allow_credential": false})
+
+	for _, cors := range []infrastructurev1alpha1.CorsSpec{
+		{AllowCredentials: true},
+		{AllowCredentials: true, AllowOrigin: "*", AllowMethods: "GET"},
+		{AllowCredentials: true, AllowOrigin: "https://one.example", AllowMethods: "*"},
+		{AllowCredentials: true, AllowOrigin: "https://one.example"},
+	} {
+		service.Spec.Cors = cors
+		if err := reconciler.reconcileRoute(ctx, service); err == nil || !strings.Contains(err.Error(), "requires explicit") {
+			t.Fatalf("expected credentialed wildcard/default error for %+v, got %v", cors, err)
+		}
+	}
+	service.Spec.Cors = infrastructurev1alpha1.CorsSpec{AllowOrigin: "https://one.example"}
+	check(map[string]any{"allow_origins": "https://one.example", "allow_credential": false})
+	service.Spec.Cors = infrastructurev1alpha1.CorsSpec{}
+	check(nil)
+}
 
 func TestApacheApisixCacheReconcilerReconcilesUpstreamList(t *testing.T) {
 	ctx := context.Background()

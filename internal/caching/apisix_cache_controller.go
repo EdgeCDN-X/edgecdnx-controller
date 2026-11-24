@@ -9,6 +9,7 @@ package caching
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -19,6 +20,7 @@ import (
 	"github.com/EdgeCDN-X/edgecdnx-controller/internal/controller"
 	apisixv2 "github.com/apache/apisix-ingress-controller/api/v2"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -183,6 +185,76 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 			Weight: &weight,
 		})
 	}
+
+	plugins := make([]apisixv2.ApisixRoutePlugin, 0)
+
+	rawCacheConfig := map[string]any{
+		"cache_zone":        service.Spec.Cache,
+		"cache_key":         []string{"$host", "$request_uri"},
+		"cache_method":      []string{"GET"},
+		"cache_http_status": []int{200},
+		"cache_strategy":    "disk",
+		"cache_control":     true,
+	}
+
+	jsonData, err := json.Marshal(rawCacheConfig)
+	if err != nil {
+		return fmt.Errorf("marshal cache config: %w", err)
+	}
+
+	caching := apisixv2.ApisixRoutePlugin{
+		Name:   "proxy-cache",
+		Enable: true,
+		Config: apiextensionsv1.JSON{
+			Raw: jsonData,
+		},
+	}
+	plugins = append(plugins, caching)
+
+	if cors := service.Spec.Cors; cors != (infrastructurev1alpha1.CorsSpec{}) {
+		origins := normalizeCORSList(cors.AllowOrigin)
+		methods := normalizeCORSList(cors.AllowMethods)
+		if cors.AllowCredentials && (origins == "" || origins == "*" || methods == "" || methods == "*") {
+			return fmt.Errorf("APISIX CORS with credentials requires explicit allowOrigin and allowMethods (not *)")
+		}
+
+		corsConfig := map[string]any{"allow_credential": cors.AllowCredentials}
+		if origins != "" {
+			corsConfig["allow_origins"] = origins
+		}
+		if methods != "" {
+			corsConfig["allow_methods"] = methods
+		}
+		if cors.AllowCredentials {
+			corsConfig["allow_headers"] = "DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+		}
+		data, err := json.Marshal(corsConfig)
+		if err != nil {
+			return fmt.Errorf("marshal CORS config: %w", err)
+		}
+		plugins = append(plugins, apisixv2.ApisixRoutePlugin{
+			Name:   "cors",
+			Enable: true,
+			Config: apiextensionsv1.JSON{Raw: data},
+		})
+	}
+
+	if len(service.Spec.Path.Rewrites) > 0 {
+		regexURI := make([]string, 0, 2*len(service.Spec.Path.Rewrites))
+		for _, rule := range service.Spec.Path.Rewrites {
+			regexURI = append(regexURI, rule.Pattern, rule.Replacement)
+		}
+		data, err := json.Marshal(map[string]any{"regex_uri": regexURI})
+		if err != nil {
+			return fmt.Errorf("marshal proxy rewrite config: %w", err)
+		}
+		plugins = append(plugins, apisixv2.ApisixRoutePlugin{
+			Name:   "proxy-rewrite",
+			Enable: true,
+			Config: apiextensionsv1.JSON{Raw: data},
+		})
+	}
+
 	desired := apisixv2.ApisixRoute{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApisixRoute",
@@ -201,6 +273,7 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 					Paths: paths,
 				},
 				Upstreams: upstreams,
+				Plugins:   plugins,
 			}},
 		},
 	}
@@ -229,6 +302,14 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 		return fmt.Errorf("update APISIX route %s: %w", routeKey, err)
 	}
 	return nil
+}
+
+func normalizeCORSList(value string) string {
+	parts := strings.Split(value, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return strings.Join(parts, ",")
 }
 
 func apisixUpstreamName(serviceName string, index int) string {

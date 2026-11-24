@@ -186,6 +186,33 @@ The controller will not overwrite Secrets or ApisixTls resources it does not
 manage. Changes and renewals update the resources; removing a certificate or
 alias removes its generated resources. Ingress-nginx is deprecated.
 
+For static-origin APISIX routes, a non-empty `spec.cors` enables the CORS
+plugin. `allowOrigin` and `allowMethods` are comma-separated lists; omitted
+values use APISIX defaults. With `allowCredentials: true`, both must be
+specified and cannot be `*`; request headers use ingress-nginx's default
+allowed-header list. APISIX also accepts `**` to force wildcard access with
+credentials, but this carries security risks. Unlike ingress-nginx, APISIX
+does not interpret wildcard hostnames in `allowOrigin` as patterns. An invalid
+credential configuration fails reconciliation and leaves an existing route
+unchanged until corrected.
+
+For static-origin APISIX routes, `spec.path.rewrites` configures ordered
+`proxy-rewrite` regex rules. The first matching pattern rewrites the upstream
+path; capture groups can be referenced in the replacement:
+
+```yaml
+path:
+  paths:
+    - /images/*
+  rewrites:
+    - pattern: "^/images/(.*)$"
+      replacement: "/assets/$1"
+```
+
+Route paths still determine which requests reach the route; rewrite patterns
+are matched separately. The legacy `spec.path.rewrite` field is not applied
+by APISIX.
+
 DNS routing considers owned and explicitly shared Locations, then applies the
 Service's label selector. Sharing does not bypass selectors: avoid a
 customer-specific `project` label selector when intentionally using platform
