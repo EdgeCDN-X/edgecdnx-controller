@@ -36,7 +36,13 @@ type ApacheApisixCacheReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	SecureUrlsEndpoint string
+	TrustedProxies     []string
 }
+
+// APISIX's WASM host does not reliably update the special Cache-Control header.
+const secureURLCacheGuard = `return function()
+  ngx.header["Cache-Control"] = "private, no-store"
+end`
 
 func (r *ApacheApisixCacheReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -188,9 +194,42 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 
 	plugins := make([]apisixv2.ApisixRoutePlugin, 0)
 
+	if len(service.Spec.SecureKeys) > 0 {
+		keys := make([]map[string]string, 0, len(service.Spec.SecureKeys))
+		for _, key := range service.Spec.SecureKeys {
+			keys = append(keys, map[string]string{"name": key.Name, "value": key.Value})
+		}
+		conf := map[string]any{
+			"secure_keys":      keys,
+			"disable_prefixes": service.Spec.SecureURL.DisablePrefixes,
+			"bind_client_ip":   service.Spec.SecureURL.BindClientIP,
+			"trusted_proxies":  append([]string{}, r.TrustedProxies...),
+		}
+		data, err := json.Marshal(map[string]any{"conf": conf})
+		if err != nil {
+			return fmt.Errorf("marshal secure URL config: %w", err)
+		}
+		plugins = append(plugins, apisixv2.ApisixRoutePlugin{
+			Name: "secure-urls", Enable: true,
+			Config: apiextensionsv1.JSON{Raw: data},
+		})
+		guard, err := json.Marshal(map[string]any{
+			"phase":     "header_filter",
+			"functions": []string{secureURLCacheGuard},
+		})
+		if err != nil {
+			return fmt.Errorf("marshal secure URL cache guard: %w", err)
+		}
+		plugins = append(plugins, apisixv2.ApisixRoutePlugin{
+			Name: "serverless-post-function", Enable: true,
+			Config: apiextensionsv1.JSON{Raw: guard},
+		})
+	}
+
+	// request_uri is immutable; use the filtered args in the cache key.
 	rawCacheConfig := map[string]any{
 		"cache_zone":        service.Spec.Cache,
-		"cache_key":         []string{"$host", "$request_uri"},
+		"cache_key":         []string{"$host", "$uri", "$is_args", "$args"},
 		"cache_method":      []string{"GET"},
 		"cache_http_status": []int{200},
 		"cache_strategy":    "disk",
@@ -255,11 +294,25 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 		})
 	}
 
+	queryParams := service.Spec.CacheKeySpec.QueryParams
+	if queryParams == nil {
+		queryParams = []string{}
+	}
+	allowlist, err := json.Marshal(queryParams)
+	if err != nil {
+		return fmt.Errorf("marshal query parameter allowlist: %w", err)
+	}
+	filterConfig, err := json.Marshal(map[string]any{
+		"conf": string(allowlist),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal query parameter filter config: %w", err)
+	}
 	plugins = append(plugins, apisixv2.ApisixRoutePlugin{
 		Name:   "query-param-filter",
 		Enable: true,
 		Config: apiextensionsv1.JSON{
-			Raw: []byte(`{"file": "/usr/local/apisix/plugins/wasm/query-param-filter.wasm", "priority": 3000, "conf": "dummy"}`),
+			Raw: filterConfig,
 		},
 	})
 

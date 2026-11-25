@@ -70,6 +70,14 @@ make uninstall
 make undeploy
 ```
 
+### APISIX trusted proxies
+
+The cache operator sets `--apisix-trusted-proxies` to a comma-separated list
+of CIDRs, or configures the Helm `apisixTrustedProxies` list. The setting
+applies to all secure URL services handled by that controller. The default
+trusts no forwarded IP headers. Invalid CIDRs prevent the controller from
+starting.
+
 ### Project Placement
 
 Projects represent tenants. All EdgeCDN-X CRDs remain Kubernetes namespaced resources.

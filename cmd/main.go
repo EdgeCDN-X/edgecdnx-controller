@@ -12,6 +12,8 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"flag"
+	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,6 +114,7 @@ func main() {
 
 	// Secure URLs
 	var secureUrlsEndpoint string
+	var apisixTrustedProxies string
 	var blockedUpstreamTLDs string
 
 	var tlsOpts []func(*tls.Config)
@@ -196,6 +199,13 @@ func main() {
 	)
 
 	flag.StringVar(
+		&apisixTrustedProxies,
+		"apisix-trusted-proxies",
+		"",
+		"Comma-separated trusted proxy CIDRs for APISIX secure URL client IP resolution.",
+	)
+
+	flag.StringVar(
 		&blockedUpstreamTLDs,
 		"blocked-upstream-tlds",
 		"local,internal,private",
@@ -209,6 +219,11 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	trustedProxies, err := parseTrustedProxyCIDRs(apisixTrustedProxies)
+	if err != nil {
+		setupLog.Error(err, "invalid APISIX trusted proxy configuration")
+		os.Exit(1)
+	}
 	if err := tenantScope.Validate(); err != nil {
 		setupLog.Error(err, "invalid tenant scope")
 		os.Exit(1)
@@ -475,6 +490,7 @@ func main() {
 				Client:             mgr.GetClient(),
 				Scheme:             mgr.GetScheme(),
 				SecureUrlsEndpoint: secureUrlsEndpoint,
+				TrustedProxies:     trustedProxies,
 			}).SetupWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "ApacheApisixCache")
 				os.Exit(1)
@@ -585,4 +601,15 @@ func parseCSVValues(rawValue string) []string {
 	}
 
 	return values
+}
+
+func parseTrustedProxyCIDRs(rawValue string) ([]string, error) {
+	values := parseCSVValues(rawValue)
+	for _, value := range values {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil || prefix.Addr().Is4In6() {
+			return nil, fmt.Errorf("invalid trusted proxy CIDR %q", value)
+		}
+	}
+	return values, nil
 }

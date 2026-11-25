@@ -360,6 +360,17 @@ spec:
                 maxItems: 2
                 minItems: 0
                 type: array
+              secureURL:
+                description: APISIX secure URL authentication settings.
+                properties:
+                  bindClientIP:
+                    description: Require signed URLs and cookies to match the client
+                      IP.
+                    type: boolean
+                  disablePrefixes:
+                    description: Disable prefix signatures and session cookies.
+                    type: boolean
+                type: object
               staticOrigins:
                 description: Defines the specs of the origin if a static origin is
                   used

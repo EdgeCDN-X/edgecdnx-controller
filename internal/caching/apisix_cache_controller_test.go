@@ -19,6 +19,188 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+func TestApacheApisixRouteQueryParamFilter(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := infrastructurev1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := apisixv2.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	service := &infrastructurev1alpha1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "edge-service", Namespace: "tenant"},
+		Spec: infrastructurev1alpha1.ServiceSpec{
+			OriginType:    infrastructurev1alpha1.OriginTypeStatic,
+			StaticOrigins: []infrastructurev1alpha1.StaticOriginSpec{{Upstream: "origin.example"}},
+			Cache:         "apisix",
+		},
+	}
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(service).Build()
+	reconciler := &ApacheApisixCacheReconciler{Client: k8sClient, Scheme: scheme}
+
+	check := func(params, want []string) {
+		t.Helper()
+		service.Spec.CacheKeySpec.QueryParams = params
+		if err := reconciler.reconcileRoute(ctx, service); err != nil {
+			t.Fatal(err)
+		}
+		route := &apisixv2.ApisixRoute{}
+		if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(service), route); err != nil {
+			t.Fatal(err)
+		}
+		var cacheKeys []string
+		for _, plugin := range route.Spec.HTTP[0].Plugins {
+			if plugin.Name == "proxy-cache" {
+				var cacheConfig struct {
+					CacheKey []string `json:"cache_key"`
+				}
+				if err := json.Unmarshal(plugin.Config.Raw, &cacheConfig); err != nil {
+					t.Fatal(err)
+				}
+				cacheKeys = cacheConfig.CacheKey
+				break
+			}
+		}
+		if wantKeys := []string{"$host", "$uri", "$is_args", "$args"}; !reflect.DeepEqual(cacheKeys, wantKeys) {
+			t.Fatalf("cache key = %v, want %v", cacheKeys, wantKeys)
+		}
+		for _, plugin := range route.Spec.HTTP[0].Plugins {
+			if plugin.Name != "query-param-filter" {
+				continue
+			}
+			if !plugin.Enable {
+				t.Fatal("query-param-filter should be enabled")
+			}
+			var config struct {
+				Conf string `json:"conf"`
+			}
+			if err := json.Unmarshal(plugin.Config.Raw, &config); err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			if err := json.Unmarshal([]byte(config.Conf), &got); err != nil {
+				t.Fatalf("invalid allowlist %q: %v", config.Conf, err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("query parameter allowlist = %#v, want %#v", got, want)
+			}
+			return
+		}
+		t.Fatal("query-param-filter plugin not found")
+	}
+
+	check(nil, []string{})
+	check([]string{"page", `quoted"name`, `back\slash`}, []string{"page", `quoted"name`, `back\slash`})
+	check([]string{"language"}, []string{"language"})
+	check([]string{}, []string{})
+}
+
+func TestApacheApisixRouteSecureURLs(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := infrastructurev1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := apisixv2.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	service := &infrastructurev1alpha1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "edge-service", Namespace: "tenant"},
+		Spec: infrastructurev1alpha1.ServiceSpec{
+			OriginType:    infrastructurev1alpha1.OriginTypeStatic,
+			StaticOrigins: []infrastructurev1alpha1.StaticOriginSpec{{Upstream: "origin.example"}},
+			Cache:         "apisix",
+		},
+	}
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(service).Build()
+	reconciler := &ApacheApisixCacheReconciler{Client: k8sClient, Scheme: scheme}
+
+	check := func(wantKeys []map[string]string, wantProxies []string) {
+		t.Helper()
+		if err := reconciler.reconcileRoute(ctx, service); err != nil {
+			t.Fatal(err)
+		}
+		route := &apisixv2.ApisixRoute{}
+		if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(service), route); err != nil {
+			t.Fatal(err)
+		}
+		guardFound := false
+		for _, plugin := range route.Spec.HTTP[0].Plugins {
+			if plugin.Name != "serverless-post-function" {
+				continue
+			}
+			guardFound = true
+			var guard struct {
+				Phase     string   `json:"phase"`
+				Functions []string `json:"functions"`
+			}
+			if !plugin.Enable {
+				t.Fatal("secure URL cache guard is disabled")
+			}
+			if err := json.Unmarshal(plugin.Config.Raw, &guard); err != nil {
+				t.Fatal(err)
+			}
+			if guard.Phase != "header_filter" || !reflect.DeepEqual(guard.Functions, []string{secureURLCacheGuard}) {
+				t.Fatal("incorrect secure URL cache guard")
+			}
+		}
+		if guardFound != (wantKeys != nil) {
+			t.Fatal("secure URL cache guard must accompany secure-urls")
+		}
+		for _, plugin := range route.Spec.HTTP[0].Plugins {
+			if plugin.Name != "secure-urls" {
+				continue
+			}
+			if wantKeys == nil || !plugin.Enable {
+				t.Fatal("unexpected or disabled secure-urls plugin")
+			}
+			var data struct {
+				Conf struct {
+					Keys            []map[string]string `json:"secure_keys"`
+					DisablePrefixes bool                `json:"disable_prefixes"`
+					BindClientIP    bool                `json:"bind_client_ip"`
+					TrustedProxies  []string            `json:"trusted_proxies"`
+				} `json:"conf"`
+			}
+			if err := json.Unmarshal(plugin.Config.Raw, &data); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(data.Conf.Keys, wantKeys) ||
+				data.Conf.DisablePrefixes != service.Spec.SecureURL.DisablePrefixes ||
+				data.Conf.BindClientIP != service.Spec.SecureURL.BindClientIP ||
+				!reflect.DeepEqual(data.Conf.TrustedProxies, wantProxies) {
+				t.Fatal("secure URL route settings do not match the service and operator configuration")
+			}
+			return
+		}
+		if wantKeys != nil {
+			t.Fatal("secure-urls plugin not found")
+		}
+	}
+
+	check(nil, nil)
+	service.Spec.SecureKeys = []infrastructurev1alpha1.SecureKeySpec{
+		{Name: "old", Value: "old-secret"},
+		{Name: "new", Value: "new-secret"},
+	}
+	service.Spec.SecureURL = infrastructurev1alpha1.SecureURLSpec{
+		DisablePrefixes: true,
+		BindClientIP:    true,
+	}
+	keys := []map[string]string{{"name": "old", "value": "old-secret"}, {"name": "new", "value": "new-secret"}}
+	check(keys, []string{})
+	reconciler.TrustedProxies = []string{"192.0.2.0/24", "2001:db8::/32"}
+	check(keys, []string{"192.0.2.0/24", "2001:db8::/32"})
+	reconciler.TrustedProxies = []string{"198.51.100.0/24"}
+	check(keys, []string{"198.51.100.0/24"})
+	reconciler.TrustedProxies = nil
+	service.Spec.SecureKeys = service.Spec.SecureKeys[1:]
+	check([]map[string]string{{"name": "new", "value": "new-secret"}}, []string{})
+	service.Spec.SecureKeys = nil
+	check(nil, nil)
+}
+
 func TestApacheApisixRouteRewrites(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

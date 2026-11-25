@@ -77,6 +77,13 @@ type SecureKeySpec struct {
 	CreatedAt metav1.Time `json:"createdAt"`
 }
 
+type SecureURLSpec struct {
+	// Disable prefix signatures and session cookies.
+	DisablePrefixes bool `json:"disablePrefixes,omitempty"`
+	// Require signed URLs and cookies to match the client IP.
+	BindClientIP bool `json:"bindClientIP,omitempty"`
+}
+
 type CacheKeySpec struct {
 	// Specifies the list of Query parameters which alter the caching key. If empty, query parameters are not used in the cache key
 	// +listType=set
@@ -159,6 +166,8 @@ type ServiceSpec struct {
 	// +kubebuilder:validation:MinItems=0
 	// +kubebuilder:validation:MaxItems=2
 	SecureKeys []SecureKeySpec `json:"secureKeys,omitempty"`
+	// APISIX secure URL authentication settings.
+	SecureURL SecureURLSpec `json:"secureURL,omitempty"`
 	// Defines the customer details for the service
 	// Deprecated: This field may be removed in future versions. Customer details are stored in Annotations
 	Customer CustomerSpec `json:"customer"`
