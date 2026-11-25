@@ -255,6 +255,14 @@ func (r *ApacheApisixCacheReconciler) reconcileRoute(ctx context.Context, servic
 		})
 	}
 
+	plugins = append(plugins, apisixv2.ApisixRoutePlugin{
+		Name:   "query-param-filter",
+		Enable: true,
+		Config: apiextensionsv1.JSON{
+			Raw: []byte(`{"file": "/usr/local/apisix/plugins/wasm/query-param-filter.wasm", "priority": 3000, "conf": "dummy"}`),
+		},
+	})
+
 	desired := apisixv2.ApisixRoute{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApisixRoute",
